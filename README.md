@@ -13,6 +13,14 @@ vaccination-program deployments end to end.
 > It is not runnable as-is without plugging in your own Supabase project,
 > Google Cloud OAuth credentials, and Netlify site.
 
+## Live Demo
+
+**[https://karimwaaaa.github.io/pq-healthshield-hub/](https://karimwaaaa.github.io/pq-healthshield-hub/)**
+
+A static, self-contained mockup of the Hub's UI, running entirely on sample
+data baked into the page — no backend, no real clients. Enable via
+**Settings → Pages → Source: Deploy from branch → main → /docs**.
+
 ## What it does
 
 The Hub is the front door for a company managing multiple client vaccination

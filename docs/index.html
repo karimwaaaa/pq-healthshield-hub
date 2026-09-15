@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Meridian Hub – Demo</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background:#f4f7fb;
+    color:#1e2a3a;
+    line-height:1.6;
+    height:100vh;
+  }
+  a { text-decoration:none; color:inherit; }
+
+  :root {
+    --navy:#16296b;
+    --navy-dark:#0f1c4a;
+    --sidebar-bg:#f7f6f2;
+    --sidebar-text:#2C3E50;
+    --sidebar-text-dim:rgba(44,62,80,0.65);
+    --sidebar-border:rgba(44,62,80,0.12);
+    --sidebar-hover:rgba(44,62,80,0.06);
+    --sidebar-active:rgba(44,62,80,0.1);
+    --teal:#1fb6a8;
+    --teal-light:#eaf6f4;
+    --green:#3ec97a;
+    --yellow:#f5d78e;
+    --orange:#f39c12;
+    --red:#e74c3c;
+    --grey-100:#f4f7fb;
+    --grey-200:#e8ecf0;
+    --grey-300:#d5dbe3;
+    --grey-600:#6b7a90;
+    --white:#ffffff;
+    --shadow:0 2px 12px rgba(22,41,107,0.08);
+    --shadow-hover:0 8px 24px rgba(22,41,107,0.15);
+    --radius:12px;
+    --transition:0.2s ease;
+    --sidebar-width:240px;
+    --demo-banner-h:40px;
+  }
+
+  /* ===== DEMO BANNER ===== */
+  .demo-banner {
+    position:fixed;
+    top:0; left:0; right:0;
+    z-index:9999;
+    height:var(--demo-banner-h);
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    background:#8a5a00;
+    color:#fff;
+    font-size:0.82em;
+    font-weight:600;
+    text-align:center;
+    padding:0 16px;
+    box-shadow:0 2px 8px rgba(0,0,0,0.2);
+  }
+
+  .app-shell {
+    display:flex;
+    height:100vh;
+    padding-top:var(--demo-banner-h);
+  }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar {
+    width:var(--sidebar-width);
+    background:var(--sidebar-bg);
+    color:var(--sidebar-text);
+    display:flex;
+    flex-direction:column;
+    flex-shrink:0;
+    padding:20px 0;
+    height:calc(100vh - var(--demo-banner-h));
+    position:sticky;
+    top:var(--demo-banner-h);
+    overflow-y:auto;
+    border-right:1px solid var(--sidebar-border);
+  }
+  .sidebar .logo-section {
+    padding:0 20px 18px;
+    border-bottom:1px solid var(--sidebar-border);
+    margin-bottom:14px;
+  }
+  .sidebar .logo-row { display:flex; align-items:center; gap:10px; }
+  .sidebar .logo-mark {
+    width:40px; height:40px; border-radius:10px;
+    background:linear-gradient(135deg, var(--navy), var(--teal));
+    color:#fff; font-weight:700; font-size:1.1em;
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+  }
+  .sidebar .portal-title { font-size:1.05em; font-weight:700; color:var(--sidebar-text); line-height:1.2; }
+  .sidebar .portal-title span { color:var(--teal); }
+  .sidebar .sub { font-size:0.7em; opacity:0.65; margin-top:2px; }
+
+  .nav-item {
+    display:flex; align-items:center; gap:12px;
+    padding:12px 20px; margin:2px 10px;
+    border-radius:8px; cursor:pointer;
+    transition:var(--transition);
+    font-weight:500; font-size:0.9em;
+    color:var(--sidebar-text-dim);
+    border:none; background:transparent;
+    width:calc(100% - 20px); text-align:left;
+  }
+  .nav-item:hover { background:var(--sidebar-hover); color:var(--sidebar-text); }
+  .nav-item.active { background:var(--sidebar-active); color:var(--sidebar-text); }
+  .nav-item .icon { font-size:1.2em; width:28px; text-align:center; }
+  .nav-item .badge {
+    margin-left:auto; background:var(--teal); color:#fff;
+    font-size:0.65em; padding:2px 10px; border-radius:12px;
+  }
+  .nav-item .nav-count-badge { background:var(--red); font-weight:700; }
+
+  .user-section { margin-top:auto; padding:14px 20px 0; border-top:1px solid var(--sidebar-border); }
+  .user-row { display:flex; align-items:center; gap:10px; margin-bottom:10px; }
+  .avatar {
+    width:36px; height:36px; border-radius:50%; background:var(--navy); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-weight:700; font-size:0.85em; flex-shrink:0;
+  }
+  .user-info .name { font-weight:600; font-size:0.88em; }
+  .user-info .role { font-size:0.72em; color:var(--sidebar-text-dim); }
+  .logout-btn {
+    width:100%; text-align:left; background:transparent; border:none;
+    padding:8px 4px; font-size:0.82em; color:var(--sidebar-text-dim); cursor:pointer; border-radius:6px;
+  }
+  .logout-btn:hover { background:var(--sidebar-hover); color:var(--sidebar-text); }
+
+  /* ===== MAIN CONTENT ===== */
+  .main-content { flex:1; overflow-y:auto; padding:28px 32px; }
+  .view { display:none; }
+  .view.active { display:block; }
+
+  .hero-dash {
+    background:linear-gradient(135deg, var(--navy) 0%, var(--navy-dark) 100%);
+    color:#fff; border-radius:var(--radius); padding:26px 28px; margin-bottom:20px;
+  }
+  .hero-dash h2 { margin-bottom:6px; }
+  .hero-dash p { font-size:0.9em; opacity:0.9; max-width:640px; }
+
+  .dash-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:16px; margin-bottom:20px; }
+  .dash-card {
+    background:#fff; border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);
+    border-top:4px solid var(--teal);
+  }
+  .dash-card h3 { font-size:0.95em; color:var(--navy); margin:6px 0 2px; }
+  .dash-card p { font-size:0.78em; color:var(--grey-600); }
+  .dash-card .stat { font-size:1.7em; font-weight:700; color:var(--navy); margin-top:6px; }
+  .card-icon { font-size:1.4em; }
+
+  .vault-header {
+    display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px;
+    margin-bottom:20px;
+  }
+  .vault-header h2 { margin-bottom:2px; }
+  .vault-header .sub { font-size:0.85em; color:var(--grey-600); }
+  .search-box {
+    display:flex; align-items:center; gap:6px; background:#fff; border:1px solid var(--grey-200);
+    border-radius:8px; padding:8px 12px; min-width:200px;
+  }
+  .search-box input { border:none; outline:none; font-size:0.85em; width:100%; }
+  .btn-add {
+    background:var(--teal); color:#fff; border:none; padding:10px 16px; border-radius:8px;
+    font-weight:600; font-size:0.85em; cursor:pointer; transition:var(--transition);
+  }
+  .btn-add:hover { background:#189d91; }
+
+  .client-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(230px,1fr)); gap:16px; }
+  .client-card {
+    background:#fff; border-radius:var(--radius); padding:18px; box-shadow:var(--shadow);
+    cursor:pointer; transition:var(--transition); position:relative;
+  }
+  .client-card:hover { box-shadow:var(--shadow-hover); transform:translateY(-2px); }
+  .client-initials {
+    width:42px; height:42px; border-radius:10px; background:var(--teal-light); color:var(--navy);
+    display:flex; align-items:center; justify-content:center; font-weight:700; margin-bottom:10px;
+  }
+  .client-name { font-weight:700; font-size:1em; color:var(--navy); }
+  .client-category { font-size:0.78em; color:var(--grey-600); margin-bottom:10px; }
+  .client-meta { display:flex; align-items:center; justify-content:space-between; font-size:0.78em; color:var(--grey-600); margin-bottom:8px; flex-wrap:wrap; gap:6px; }
+  .client-status { display:inline-flex; align-items:center; gap:5px; font-weight:600; padding:3px 9px; border-radius:12px; font-size:0.85em; }
+  .client-status .dot { width:7px; height:7px; border-radius:50%; }
+  .client-status.active { background:#e8f9ef; color:#218a4c; }
+  .client-status.active .dot { background:var(--green); }
+  .client-status.ongoing { background:#fff6e5; color:#9a6b00; }
+  .client-status.ongoing .dot { background:var(--orange); }
+  .client-status.complete { background:#eef1f7; color:#3b4a63; }
+  .client-status.complete .dot { background:var(--grey-600); }
+  .card-role-hint {
+    display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-size:0.75em; color:var(--grey-600);
+    border-top:1px solid var(--grey-200); padding-top:8px; margin-top:6px;
+  }
+  .card-action-link { color:var(--teal); font-weight:600; }
+  .card-action-link:hover { text-decoration:underline; }
+  .admin-contact { font-size:0.75em; color:var(--grey-600); margin-bottom:6px; }
+
+  /* ===== MODALS ===== */
+  .modal-overlay {
+    display:none; position:fixed; inset:0; background:rgba(15,20,40,0.5); z-index:2000;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.active { display:flex; }
+  .modal {
+    background:#fff; border-radius:var(--radius); padding:28px 26px; max-width:440px; width:100%;
+    box-shadow:0 24px 48px rgba(0,0,0,0.25);
+  }
+  .modal h2 { color:var(--navy); margin-bottom:6px; font-size:1.2em; }
+  .modal .sub { font-size:0.85em; color:var(--grey-600); margin-bottom:16px; }
+  .form-group { margin-bottom:14px; text-align:left; }
+  .form-group label { display:block; font-weight:600; font-size:0.82em; color:var(--navy); margin-bottom:4px; }
+  .form-group input, .form-group select {
+    width:100%; padding:9px 12px; border:1px solid var(--grey-200); border-radius:8px; font-size:0.9em;
+  }
+  .form-group input:focus, .form-group select:focus { outline:none; border-color:var(--teal); }
+  .modal-actions { display:flex; justify-content:flex-end; gap:10px; margin-top:18px; }
+  .btn-cancel { background:var(--grey-100); color:var(--navy); border:none; padding:9px 16px; border-radius:8px; font-weight:600; cursor:pointer; font-size:0.85em; }
+  .btn-save { background:var(--navy); color:#fff; border:none; padding:9px 16px; border-radius:8px; font-weight:600; cursor:pointer; font-size:0.85em; }
+  .btn-save:disabled { opacity:0.6; cursor:not-allowed; }
+  .btn-save:hover:not(:disabled) { background:var(--navy-dark); }
+
+  .provision-status { display:none; font-size:0.85em; padding:10px 12px; border-radius:8px; margin-top:4px; }
+  .provision-status.show { display:flex; align-items:center; gap:8px; }
+  .provision-status.info { background:#eaf3fb; color:#1c5a8a; }
+  .provision-status.success { background:#e8f9ef; color:#218a4c; }
+  .spinner {
+    width:14px; height:14px; border-radius:50%; border:2px solid rgba(28,90,138,0.25);
+    border-top-color:#1c5a8a; animation:spin 0.8s linear infinite; flex-shrink:0;
+  }
+  @keyframes spin { to { transform:rotate(360deg); } }
+  .provision-steps { list-style:none; margin-top:4px; font-size:0.8em; }
+  .provision-steps li { padding:3px 0; color:var(--grey-600); }
+  .provision-steps li.done { color:#218a4c; }
+  .provision-steps li.active { color:var(--navy); font-weight:600; }
+
+  .success-links { display:flex; flex-direction:column; gap:8px; margin:10px 0 4px; }
+  .fake-link {
+    display:block; font-size:0.82em; background:var(--grey-100); border-radius:8px; padding:8px 10px;
+    color:var(--navy); word-break:break-all;
+  }
+
+  /* ===== TICKETS ===== */
+  .ticket-card-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:14px; }
+  .ticket-card {
+    background:#fff; border-radius:10px; padding:14px 16px; box-shadow:var(--shadow);
+    border-left:4px solid var(--teal); cursor:pointer; transition:var(--transition);
+  }
+  .ticket-card:hover { box-shadow:var(--shadow-hover); }
+  .ticket-card--low { border-left-color:#7f8c9a; }
+  .ticket-card--normal { border-left-color:var(--teal); }
+  .ticket-card--high { border-left-color:var(--orange); }
+  .ticket-card--urgent { border-left-color:var(--red); }
+  .ticket-card--resolved { border-left-color:var(--green); opacity:0.75; }
+  .ticket-card-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+  .ticket-card-id { font-size:0.72em; color:var(--grey-600); font-weight:700; }
+  .ticket-priority-pill { font-size:0.68em; font-weight:700; padding:2px 8px; border-radius:10px; text-transform:uppercase; }
+  .pill-low { background:#eef1f7; color:#54606f; }
+  .pill-normal { background:var(--teal-light); color:#0f7d70; }
+  .pill-high { background:#fff1da; color:#9a5f00; }
+  .pill-urgent { background:#fdecea; color:#c0392b; }
+  .ticket-card-person { font-size:0.8em; font-weight:600; color:var(--navy); margin-bottom:4px; }
+  .ticket-card-issue { font-size:0.82em; color:var(--grey-600); display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+  .ticket-card-footer { font-size:0.72em; color:var(--grey-600); margin-top:8px; display:flex; justify-content:space-between; }
+
+  .admin-panel { background:#fff; border-radius:var(--radius); padding:20px 22px; box-shadow:var(--shadow); margin-bottom:20px; }
+  .admin-panel h3 { color:var(--navy); margin-bottom:6px; }
+  .panel-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:14px; margin-bottom:14px; }
+  .panel-card { background:var(--grey-100); border-radius:10px; padding:14px; }
+  .panel-card .label { font-size:0.75em; color:var(--grey-600); }
+  .panel-card .value { font-size:1.4em; font-weight:700; color:var(--navy); }
+
+  table.temp-table { width:100%; border-collapse:collapse; font-size:0.85em; }
+  table.temp-table th, table.temp-table td { text-align:left; padding:9px 10px; border-bottom:1px solid var(--grey-200); }
+  table.temp-table th { color:var(--grey-600); font-weight:600; font-size:0.85em; }
+  .status-active { color:#218a4c; font-weight:600; }
+  .status-pending { color:#9a6b00; font-weight:600; }
+  .btn-sm { border:none; border-radius:6px; padding:6px 12px; font-size:0.8em; font-weight:600; cursor:pointer; }
+  .btn-sm.generate { background:var(--teal); color:#fff; }
+  .btn-sm.revoke { background:#fdecea; color:#c0392b; }
+
+  .empty-note { color:var(--grey-600); font-size:0.85em; text-align:center; padding:20px; }
+
+  .toast {
+    position:fixed; bottom:20px; right:20px; z-index:5000; background:var(--navy); color:#fff;
+    padding:12px 18px; border-radius:8px; font-size:0.85em; box-shadow:var(--shadow-hover);
+    opacity:0; transform:translateY(10px); transition:all 0.25s ease; pointer-events:none;
+  }
+  .toast.show { opacity:1; transform:translateY(0); }
+
+  @media (max-width:720px) {
+    .sidebar { width:72px; }
+    .sidebar .portal-title, .sidebar .sub, .nav-item span:not(.icon), .nav-item .badge, .user-info { display:none; }
+    .nav-item { justify-content:center; }
+    .logo-row { justify-content:center; }
+  }
+</style>
+</head>
+<body>
+
+<div class="demo-banner">
+  🧪 Interactive demo — sample data only. Not connected to any live system.
+</div>
+
+<div class="app-shell">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="logo-section">
+      <div class="logo-row">
+        <div class="logo-mark">MH</div>
+        <div>
+          <div class="portal-title">Meridian <span>Hub</span></div>
+          <div class="sub">Internal Portal · Demo Build</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="nav-item active" onclick="switchView('dashboard', this)">
+      <span class="icon">📊</span><span>Overview</span><span class="badge">Live</span>
+    </button>
+    <button class="nav-item" onclick="switchView('vault', this)">
+      <span class="icon">🗂️</span><span>Client Vault</span><span class="badge">v2.0</span>
+    </button>
+    <button class="nav-item" onclick="switchView('passwords', this)">
+      <span class="icon">🔑</span><span>Password Mgmt</span><span class="badge">Admin</span>
+    </button>
+    <button class="nav-item" onclick="switchView('tickets', this)">
+      <span class="icon">🎫</span><span>Help Tickets</span>
+      <span class="badge nav-count-badge" id="ticketBadge">2</span>
+    </button>
+
+    <div class="user-section">
+      <div class="user-row">
+        <div class="avatar">JS</div>
+        <div class="user-info">
+          <div class="name">Jamie Santos</div>
+          <div class="role">Admin (demo)</div>
+        </div>
+      </div>
+      <button class="logout-btn" onclick="showToast('This is a static demo — sign-out is disabled.')">🚪 Sign Out</button>
+    </div>
+  </aside>
+
+  <!-- ===== MAIN CONTENT ===== -->
+  <main class="main-content">
+
+    <!-- OVERVIEW -->
+    <div class="view active" id="viewDashboard">
+      <div class="hero-dash">
+        <h2>📊 Centralized Operations Overview</h2>
+        <p>A snapshot of Meridian Health Logistics' client deployments — provisioning status, open support tickets,
+        and encoder activity across every VxSync client, all in one place.</p>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-card">
+          <div class="card-icon">🗂️</div>
+          <h3>Total Clients</h3>
+          <p>Vaccination-program deployments managed</p>
+          <div class="stat" id="statClients">—</div>
+        </div>
+        <div class="dash-card" style="border-top-color:var(--green);">
+          <div class="card-icon">✅</div>
+          <h3>Active Deployments</h3>
+          <p>Currently live and syncing data</p>
+          <div class="stat" id="statActive">—</div>
+        </div>
+        <div class="dash-card" style="border-top-color:var(--orange);">
+          <div class="card-icon">🎫</div>
+          <h3>Open Tickets</h3>
+          <p>Awaiting a response from IT Support</p>
+          <div class="stat" id="statTickets">—</div>
+        </div>
+      </div>
+      <div class="admin-panel">
+        <h3>⚡ Quick Action</h3>
+        <p style="font-size:0.85em; color:var(--grey-600); margin-bottom:12px;">
+          Provisioning a brand-new client is the Hub's signature feature — one click spins up their
+          VxSync Sheet and web app automatically. Try it from the Client Vault.
+        </p>
+        <button class="btn-add" onclick="switchViewByName('vault'); openProvisionModal();">⚡ Provision a New Client</button>
+      </div>
+    </div>
+
+    <!-- CLIENT VAULT -->
+    <div class="view" id="viewVault">
+      <div class="vault-header">
+        <div>
+          <h2>🗂️ Client Vault</h2>
+          <div class="sub">Manage every VxSync vaccination-program deployment</div>
+        </div>
+        <div style="display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+          <div class="search-box">
+            <span>🔍</span>
+            <input type="text" id="clientSearch" placeholder="Search clients..." oninput="renderClients()" />
+          </div>
+          <button class="btn-add" onclick="openProvisionModal()">➕ Add Client</button>
+        </div>
+      </div>
+      <div class="client-grid" id="clientGrid"></div>
+    </div>
+
+    <!-- PASSWORD MANAGEMENT -->
+    <div class="view" id="viewPasswords">
+      <div class="admin-panel">
+        <h3>🔑 Password Management</h3>
+        <p style="font-size:0.85em; color:var(--grey-600); margin-bottom:12px;">
+          Temporary passwords issued to encoder accounts. Expire automatically after the set duration.
+        </p>
+        <div class="panel-grid">
+          <div class="panel-card"><div class="label">Active Temporary Passwords</div><div class="value">3</div></div>
+          <div class="panel-card"><div class="label">Expired Temporary Passwords</div><div class="value">5</div></div>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="temp-table">
+            <thead><tr><th>Email</th><th>Full Name</th><th>Generated</th><th>Expires</th><th>Status</th></tr></thead>
+            <tbody id="tempPassBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- HELP TICKETS -->
+    <div class="view" id="viewTickets">
+      <div class="admin-panel">
+        <h3>🎫 Help Tickets</h3>
+        <p style="font-size:0.85em; color:var(--grey-600); margin-bottom:12px;">
+          Requests submitted from the Help button's "Contact IT Support" form.
+        </p>
+        <div class="ticket-card-grid" id="ticketGrid"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- PROVISION MODAL -->
+<div class="modal-overlay" id="provisionModal">
+  <div class="modal">
+    <h2>⚡ Auto-Provision Client</h2>
+    <p class="sub">Automatically creates this client's VxSync Sheet and Apps Script Web App — no manual Google Drive/Apps Script work needed. Takes about 10-20 seconds.</p>
+    <form id="provisionForm" onsubmit="submitProvision(event)">
+      <div class="form-group">
+        <label>Client Name <span style="color:var(--red)">*</span></label>
+        <input type="text" id="pvName" placeholder="e.g. Cascade Family Clinics" required />
+      </div>
+      <div class="form-group">
+        <label>Category</label>
+        <input type="text" id="pvCategory" placeholder="e.g. Primary Care" />
+      </div>
+      <div class="form-group">
+        <label>Initials</label>
+        <input type="text" id="pvInitials" placeholder="e.g. CFC" maxlength="4" />
+      </div>
+      <div class="provision-status" id="provisionStatus">
+        <div class="spinner"></div>
+        <div>
+          <div id="provisionStatusText">Working…</div>
+        </div>
+      </div>
+      <ul class="provision-steps" id="provisionSteps" style="display:none;">
+        <li id="step1">Copying master VxSync Sheet template…</li>
+        <li id="step2">Creating standalone Apps Script project…</li>
+        <li id="step3">Deploying web app…</li>
+        <li id="step4">Sharing Sheet + Web App with all admins…</li>
+      </ul>
+      <div class="modal-actions">
+        <button type="button" class="btn-cancel" id="provisionCancelBtn" onclick="closeProvisionModal()">Cancel</button>
+        <button type="submit" class="btn-save" id="provisionSubmitBtn">⚡ Create Client</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- SUCCESS MODAL -->
+<div class="modal-overlay" id="successModal">
+  <div class="modal">
+    <h2>✅ Client Created</h2>
+    <p class="sub" id="successMessage">The client is ready.</p>
+    <div class="success-links" id="successLinks"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-save" onclick="closeSuccessModal()">Done</button>
+    </div>
+  </div>
+</div>
+
+<!-- CLIENT DETAIL MODAL -->
+<div class="modal-overlay" id="clientDetailModal">
+  <div class="modal">
+    <h2 id="cdName">Client Name</h2>
+    <p class="sub" id="cdCategory">Category</p>
+    <div class="form-group"><label>Status</label><div id="cdStatus"></div></div>
+    <div class="form-group"><label>Admin Contact</label><div id="cdContact"></div></div>
+    <div class="form-group"><label>Last Updated</label><div id="cdUpdated"></div></div>
+    <div class="form-group"><label>Recent Activity</label><div id="cdActivity" style="font-size:0.82em; color:var(--grey-600);"></div></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" onclick="closeClientDetail()">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- TICKET DETAIL MODAL -->
+<div class="modal-overlay" id="ticketDetailModal">
+  <div class="modal">
+    <h2 id="tdSubject">Ticket</h2>
+    <p class="sub" id="tdMeta">—</p>
+    <div class="form-group"><label>Description</label><div id="tdDescription" style="font-size:0.85em;"></div></div>
+    <div class="modal-actions">
+      <button type="button" class="btn-cancel" onclick="closeTicketDetail()">Close</button>
+      <button type="button" class="btn-save" id="tdResolveBtn" onclick="resolveTicket()">✅ Mark Resolved</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ==========================================================
+  // SAMPLE DATA — entirely fictional, for demo purposes only.
+  // ==========================================================
+  var clients = [
+    { id:1, name:'Cascade Family Clinics', initials:'CFC', category:'Primary Care', status:'Active', lastUpdated:'Sep 8, 2026', contact:'admin@cascadefamilyclinics.example', activity:'Encoder Maria T. logged 42 entries this week.' },
+    { id:2, name:'Brightwell Senior Care', initials:'BSC', category:'Senior Care', status:'Active', lastUpdated:'Sep 12, 2026', contact:'ops@brightwellseniorcare.example', activity:'Sync succeeded — data as of Sep 12, 2026, 6:02 AM.' },
+    { id:3, name:'Lakeside Pediatric Group', initials:'LPG', category:'Pediatrics', status:'Ongoing', lastUpdated:'Sep 14, 2026', contact:'admin@lakesidepediatrics.example', activity:'Client onboarding in progress — awaiting initial data upload.' },
+    { id:4, name:'Union County Health Dept', initials:'UCH', category:'Government', status:'Active', lastUpdated:'Sep 10, 2026', contact:'coordinator@unioncountyhealth.example', activity:'3 encoders assigned. Last sync 2 hours ago.' },
+    { id:5, name:'Harbor View Pharmacies', initials:'HVP', category:'Pharmacy', status:'Complete', lastUpdated:'Aug 30, 2026', contact:'pharmacy@harborviewrx.example', activity:'Program concluded — archived for reporting.' },
+    { id:6, name:'Foothill Community Health', initials:'FCH', category:'Community Health', status:'Active', lastUpdated:'Sep 13, 2026', contact:'admin@foothillcommunityhealth.example', activity:'New encoder added: Priya K.' },
+    { id:7, name:'Redwood Occupational Health', initials:'ROH', category:'Occupational Health', status:'Ongoing', lastUpdated:'Sep 11, 2026', contact:'hr@redwoodocchealth.example', activity:'Apps Script deployment pending final admin approval.' },
+    { id:8, name:'Pinecrest Urgent Care', initials:'PUC', category:'Urgent Care', status:'Active', lastUpdated:'Sep 9, 2026', contact:'admin@pinecresturgentcare.example', activity:'Sync succeeded — data as of Sep 9, 2026, 7:15 AM.' },
+    { id:9, name:'Summit Employer Wellness', initials:'SEW', category:'Employer Wellness', status:'Complete', lastUpdated:'Aug 21, 2026', contact:'wellness@summitworkforce.example', activity:'Program concluded — archived for reporting.' },
+    { id:10, name:'Bayside Medical Partners', initials:'BMP', category:'Primary Care', status:'Active', lastUpdated:'Sep 14, 2026', contact:'admin@baysidemedicalpartners.example', activity:'Encoder assignments updated this morning.' }
+  ];
+
+  var tickets = [
+    { id:'TCK-1042', subject:'Entry form not loading for Cascade Family Clinics', person:'Maria T. (Encoder)', priority:'urgent', status:'open', created:'Sep 14, 2026', description:'The VxSync entry form shows a blank screen after login for the Cascade Family Clinics deployment. Tried two different browsers.' },
+    { id:'TCK-1041', subject:'Need a new temporary password', person:'Priya K. (Encoder)', priority:'normal', status:'open', created:'Sep 13, 2026', description:'My temporary password expired before I could log in for the first time. Could someone generate a new one for Foothill Community Health?' },
+    { id:'TCK-1039', subject:'Typo in client name on dashboard card', person:'Jamie Santos (Admin)', priority:'low', status:'resolved', created:'Sep 10, 2026', description:'"Redwood Occupatinal Health" should read "Redwood Occupational Health" — fixed via Edit Card.' },
+    { id:'TCK-1036', subject:'Sync failing for Bayside Medical Partners', person:'Sam O. (IT Support)', priority:'high', status:'resolved', created:'Sep 5, 2026', description:'Nightly sync trigger failed twice in a row. Reinstalled the Hub sync trigger from the Apps Script project and it recovered.' }
+  ];
+
+  var tempPasswords = [
+    { email:'priya.k@foothillcommunityhealth.example', name:'Priya Kapoor', generated:'Sep 12, 2026', expires:'Sep 19, 2026', status:'active' },
+    { email:'sam.o@redwoodoccheath.example', name:'Sam Ortiz', generated:'Sep 13, 2026', expires:'Sep 20, 2026', status:'active' },
+    { email:'j.reyes@pinecresturgentcare.example', name:'Jordan Reyes', generated:'Sep 9, 2026', expires:'Sep 16, 2026', status:'active' }
+  ];
+
+  // ==========================================================
+  // NAVIGATION
+  // ==========================================================
+  function switchView(name, btn) {
+    document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+    document.querySelectorAll('.nav-item').forEach(function(n){ n.classList.remove('active'); });
+    var map = { dashboard:'viewDashboard', vault:'viewVault', passwords:'viewPasswords', tickets:'viewTickets' };
+    document.getElementById(map[name]).classList.add('active');
+    if (btn) btn.classList.add('active');
+    else {
+      document.querySelectorAll('.nav-item').forEach(function(n){
+        if (n.getAttribute('onclick') && n.getAttribute('onclick').indexOf("'"+name+"'") !== -1) n.classList.add('active');
+      });
+    }
+  }
+  function switchViewByName(name) { switchView(name, null); }
+
+  // ==========================================================
+  // OVERVIEW STATS
+  // ==========================================================
+  function renderStats() {
+    document.getElementById('statClients').textContent = clients.length;
+    document.getElementById('statActive').textContent = clients.filter(function(c){ return c.status === 'Active'; }).length;
+    document.getElementById('statTickets').textContent = tickets.filter(function(t){ return t.status === 'open'; }).length;
+  }
+
+  // ==========================================================
+  // CLIENT VAULT
+  // ==========================================================
+  function renderClients() {
+    var grid = document.getElementById('clientGrid');
+    var term = (document.getElementById('clientSearch').value || '').trim().toLowerCase();
+    grid.innerHTML = '';
+    var filtered = clients.filter(function(c){ return c.name.toLowerCase().indexOf(term) !== -1; });
+    if (filtered.length === 0) {
+      grid.innerHTML = '<p class="empty-note">No clients match your search.</p>';
+      return;
+    }
+    filtered.forEach(function(client){
+      var statusClass = client.status.toLowerCase();
+      var card = document.createElement('div');
+      card.className = 'client-card';
+      card.onclick = function(){ openClientDetail(client.id); };
+      card.innerHTML =
+        '<div class="client-initials">' + client.initials + '</div>' +
+        '<div class="client-name">' + client.name + '</div>' +
+        '<div class="client-category">' + client.category + '</div>' +
+        '<div class="client-meta">' +
+          '<span>📅 ' + client.lastUpdated + '</span>' +
+          '<span class="client-status ' + statusClass + '"><span class="dot"></span> ' + client.status + '</span>' +
+        '</div>' +
+        '<div class="card-role-hint"><span>👤 Admin · Click for details</span></div>';
+      grid.appendChild(card);
+    });
+  }
+
+  function openClientDetail(id) {
+    var c = clients.find(function(x){ return x.id === id; });
+    if (!c) return;
+    document.getElementById('cdName').textContent = c.name;
+    document.getElementById('cdCategory').textContent = c.category;
+    document.getElementById('cdStatus').innerHTML = '<span class="client-status ' + c.status.toLowerCase() + '"><span class="dot"></span> ' + c.status + '</span>';
+    document.getElementById('cdContact').textContent = c.contact;
+    document.getElementById('cdUpdated').textContent = c.lastUpdated;
+    document.getElementById('cdActivity').textContent = c.activity;
+    document.getElementById('clientDetailModal').classList.add('active');
+  }
+  function closeClientDetail() { document.getElementById('clientDetailModal').classList.remove('active'); }
+
+  // ==========================================================
+  // PROVISIONING FLOW (fully fake, setTimeout-driven)
+  // ==========================================================
+  function openProvisionModal() {
+    document.getElementById('provisionForm').reset();
+    document.getElementById('provisionStatus').classList.remove('show');
+    document.getElementById('provisionSteps').style.display = 'none';
+    ['step1','step2','step3','step4'].forEach(function(id){
+      document.getElementById(id).className = '';
+    });
+    document.getElementById('provisionSubmitBtn').disabled = false;
+    document.getElementById('provisionModal').classList.add('active');
+  }
+  function closeProvisionModal() { document.getElementById('provisionModal').classList.remove('active'); }
+
+  function submitProvision(e) {
+    e.preventDefault();
+    var name = document.getElementById('pvName').value.trim();
+    var category = document.getElementById('pvCategory').value.trim() || 'General';
+    var initials = document.getElementById('pvInitials').value.trim().toUpperCase() || name.substring(0,2).toUpperCase();
+    if (!name) return;
+
+    document.getElementById('provisionSubmitBtn').disabled = true;
+    document.getElementById('provisionCancelBtn').disabled = true;
+    var statusEl = document.getElementById('provisionStatus');
+    statusEl.className = 'provision-status show info';
+    document.getElementById('provisionStatusText').textContent = 'Creating Sheet + Apps Script Web App — this takes about 10-20 seconds, please wait…';
+    document.getElementById('provisionSteps').style.display = 'block';
+
+    var steps = ['step1','step2','step3','step4'];
+    var delays = [900, 1900, 1300, 1100];
+    var t = 0;
+    steps.forEach(function(id, i) {
+      t += delays[i];
+      setTimeout(function() {
+        if (i > 0) document.getElementById(steps[i-1]).className = 'done';
+        document.getElementById(id).className = 'active';
+      }, t - delays[i]);
+    });
+
+    setTimeout(function() {
+      document.getElementById(steps[steps.length-1]).className = 'done';
+      statusEl.className = 'provision-status show success';
+      document.getElementById('provisionStatusText').textContent = '✅ Client created successfully!';
+      var newId = Math.max.apply(null, clients.map(function(c){return c.id;})) + 1;
+      var today = new Date();
+      var dateStr = today.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'numeric' });
+      clients.unshift({
+        id:newId, name:name, initials:initials.substring(0,4), category:category,
+        status:'Ongoing', lastUpdated:dateStr,
+        contact:'admin@' + name.toLowerCase().replace(/[^a-z0-9]+/g,'') + '.example',
+        activity:'Client just provisioned — awaiting first data upload.'
+      });
+      setTimeout(function() {
+        closeProvisionModal();
+        renderClients();
+        renderStats();
+        document.getElementById('successMessage').textContent = name + ' has been provisioned and is ready to use.';
+        document.getElementById('successLinks').innerHTML =
+          '<span class="fake-link">📄 Sheet: docs.google.com/spreadsheets/d/(demo-only-fake-id)</span>' +
+          '<span class="fake-link">🌐 Web App: script.google.com/macros/s/(demo-only-fake-id)/exec</span>';
+        document.getElementById('successModal').classList.add('active');
+      }, 900);
+    }, t);
+  }
+  function closeSuccessModal() { document.getElementById('successModal').classList.remove('active'); }
+
+  // ==========================================================
+  // TICKETS
+  // ==========================================================
+  function renderTickets() {
+    var grid = document.getElementById('ticketGrid');
+    grid.innerHTML = '';
+    tickets.forEach(function(t){
+      var card = document.createElement('div');
+      card.className = 'ticket-card ticket-card--' + t.priority + (t.status === 'resolved' ? ' ticket-card--resolved' : '');
+      card.onclick = function(){ openTicketDetail(t.id); };
+      card.innerHTML =
+        '<div class="ticket-card-top">' +
+          '<span class="ticket-card-id">' + t.id + '</span>' +
+          '<span class="ticket-priority-pill pill-' + t.priority + '">' + t.priority + '</span>' +
+        '</div>' +
+        '<div class="ticket-card-person">' + t.person + '</div>' +
+        '<div class="ticket-card-issue">' + t.subject + '</div>' +
+        '<div class="ticket-card-footer"><span>' + t.created + '</span><span>' + (t.status === 'resolved' ? '✅ Resolved' : '🟡 Open') + '</span></div>';
+      grid.appendChild(card);
+    });
+    document.getElementById('ticketBadge').textContent = tickets.filter(function(t){ return t.status === 'open'; }).length;
+  }
+
+  var currentTicketId = null;
+  function openTicketDetail(id) {
+    var t = tickets.find(function(x){ return x.id === id; });
+    if (!t) return;
+    currentTicketId = id;
+    document.getElementById('tdSubject').textContent = t.subject;
+    document.getElementById('tdMeta').textContent = t.id + ' · ' + t.person + ' · ' + t.created + ' · ' + t.priority.toUpperCase();
+    document.getElementById('tdDescription').textContent = t.description;
+    document.getElementById('tdResolveBtn').style.display = t.status === 'resolved' ? 'none' : 'inline-block';
+    document.getElementById('ticketDetailModal').classList.add('active');
+  }
+  function closeTicketDetail() { document.getElementById('ticketDetailModal').classList.remove('active'); }
+  function resolveTicket() {
+    var t = tickets.find(function(x){ return x.id === currentTicketId; });
+    if (t) t.status = 'resolved';
+    closeTicketDetail();
+    renderTickets();
+    renderStats();
+    showToast('Ticket ' + currentTicketId + ' marked resolved.');
+  }
+
+  // ==========================================================
+  // PASSWORD MANAGEMENT (static demo table)
+  // ==========================================================
+  function renderTempPasswords() {
+    var body = document.getElementById('tempPassBody');
+    body.innerHTML = '';
+    tempPasswords.forEach(function(p){
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + p.email + '</td>' +
+        '<td>' + p.name + '</td>' +
+        '<td>' + p.generated + '</td>' +
+        '<td>' + p.expires + '</td>' +
+        '<td><span class="status-active">✅ Active</span></td>';
+      body.appendChild(tr);
+    });
+  }
+
+  // ==========================================================
+  // TOAST
+  // ==========================================================
+  var toastTimer = null;
+  function showToast(msg) {
+    var el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ el.classList.remove('show'); }, 2600);
+  }
+
+  // ==========================================================
+  // INIT
+  // ==========================================================
+  renderStats();
+  renderClients();
+  renderTickets();
+  renderTempPasswords();
+</script>
+</body>
+</html>
