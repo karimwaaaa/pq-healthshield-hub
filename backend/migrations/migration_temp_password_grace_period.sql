@@ -1,0 +1,22 @@
+-- ============================================================
+-- [COMPANY_NAME] Hub — migration for the temp-password grace-period change.
+--
+-- Run this in: Supabase Dashboard → SQL Editor → New query.
+-- Safe to run once on your existing project — it does NOT touch any
+-- existing rows in users/clients/assignments/sessions/audit_log.
+-- ============================================================
+
+-- Tracks the moment an encoder FIRST successfully logs in with a temp
+-- password. Before this column existed, a temp password's expiry was set
+-- once at generation time using the admin-picked duration (e.g. 7 days),
+-- counted from generation — so an encoder who never logged in still had
+-- days to eventually use it.
+--
+-- New behavior (implemented in the Edge Function, this column just makes
+-- it possible): a freshly generated temp password now expires in 10
+-- minutes if nobody logs in with it. The moment they DO log in for the
+-- first time, first_login_at is stamped and expires_at is recomputed to
+-- the real admin-picked duration counted from that login — so the actual
+-- access window an admin intended only starts once someone is actually
+-- using the account.
+alter table users add column if not exists first_login_at timestamptz;

@@ -1,0 +1,8 @@
+{
+  "name": "pq-healthshield-hub",
+  "private": true,
+  "description": "Deploy-folder package.json - exists ONLY so Netlify's build system runs npm install before bundling the Functions, which is what actually resolves the @netlify/blobs import at build time. Without this file present, there is no node_modules for the bundler to pull from, and @netlify/blobs fails to resolve (build-time for the Edge Function, or a silent runtime crash for regular Functions).",
+  "dependencies": {
+    "@netlify/blobs": "*"
+  }
+}

@@ -1,0 +1,39 @@
+# ============================================================
+# Netlify config for the [COMPANY_NAME] Hub deploy.
+#
+# You're currently deploying by dragging a single HTML file into
+# Netlify. To add maintenance mode you need to switch to deploying a
+# FOLDER instead (still drag-and-drop, no git required) shaped like this:
+#
+#   deploy-folder/
+#     index.html                              <- your Hub file, renamed
+#     netlify.toml                            <- this file
+#     package.json                            <- declares @netlify/blobs so
+#                                                 Netlify's build runs
+#                                                 npm install before bundling
+#                                                 (required - without it,
+#                                                 @netlify/blobs can't
+#                                                 resolve at all)
+#     netlify/edge-functions/maintenance-gate.ts
+#     netlify/functions/toggle-maintenance.ts
+#     netlify/functions/maintenance-status.ts
+#
+# Drag that whole folder onto Netlify's "Deploys" tab the same way you
+# currently drag the single HTML file. Netlify picks up netlify.toml and
+# all three function files automatically.
+# ============================================================
+
+[build]
+  publish = "."
+
+# Runs on every request to the site, before the static file is served.
+[[edge_functions]]
+  path = "/*"
+  function = "maintenance-gate"
+
+# Regular (not edge) functions don't take a "path" key here in
+# netlify.toml (that's an edge-function-only field) - each one declares
+# its own custom URL from inside the file itself via its exported
+# `config` object (see the bottom of toggle-maintenance.ts and
+# maintenance-status.ts), which is the actually-supported mechanism for
+# a custom Function route. Nothing else needed here for either of them.
