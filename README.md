@@ -1,4 +1,4 @@
-# [Company] HealthShield Hub
+# PQ Healthshield Hub
 
 *Built while working at PQ Healthshield Inc.*
 
@@ -40,6 +40,14 @@ the same SSO token flow:
 - **Central client directory ("Client Vault")** — status tracking (Ongoing /
   Active / Complete), quick links to each client's Sheet and live web app,
   activity logs, and encoder assignment management.
+- **Full client teardown, not just a database row.** Deleting a client from
+  the Vault removes the client end-to-end: its provisioned Google Sheet and
+  Apps Script project are permanently deleted from Drive (not just moved to
+  trash), the Supabase row is removed, and every encoder who had that client
+  assigned gets a notice explaining what happened and what they're still
+  assigned to. Each Drive resource's outcome (deleted / already gone /
+  failed / never tracked) is reported back individually rather than as a
+  single pass/fail.
 - **Session security** — idle-timeout auto-lock with a persisted timer that
   survives a backgrounded tab being reloaded by the browser, and a
   refresh-without-relogin flow that restores an active session cleanly.
@@ -84,8 +92,6 @@ the same SSO token flow:
   system actually evolved (see notable engineering decisions below).
 - **`netlify/`** — a maintenance-mode Edge Function + toggle API, deployed
   alongside the static site.
-- **`.github/workflows/keep-alive.yml`** — a scheduled GitHub Action that
-  pings Supabase daily so a free-tier project doesn't auto-pause.
 
 ## Notable engineering decisions
 
@@ -110,12 +116,26 @@ the same SSO token flow:
   schema changes (e.g. renaming a user role across the whole system,
   loosening an unnecessary NOT NULL constraint after a bug report) stays
   readable rather than getting flattened into one opaque `schema.sql`.
+- **Deletion is deliberately destructive, not "safe by default."** An
+  earlier version of client deletion only ever removed the Supabase row —
+  the client's actual Google Sheet and Apps Script project were silently
+  orphaned in Drive forever. The fix was to make deletion match what an
+  admin actually means by "delete this client": real, permanent removal of
+  every resource that client owns. That meant solving a real ordering
+  problem first — the Drive file IDs needed for cleanup weren't being
+  persisted at provisioning time at all, and the row referencing which
+  encoders were assigned to the client gets cascade-deleted the instant the
+  `clients` row goes, so anyone who needs to be notified has to be captured
+  *before* the delete runs, not looked up after. Drive deletes are treated
+  as best-effort and reported per-resource; the database row is removed
+  regardless of whether Drive cleanup fully succeeded, so a flaky Google API
+  call can never leave a "zombie" client stuck half-deleted in the Vault.
 
 ## Tech stack
 
 Deno (Supabase Edge Functions) · PostgreSQL (Supabase, with Row Level
 Security) · vanilla HTML/CSS/JS (no framework) · Netlify (static hosting +
-Edge Functions) · Google Drive API · Google Apps Script API · GitHub Actions
+Edge Functions) · Google Drive API · Google Apps Script API
 
 ## Part of a 3-repo system
 
@@ -146,6 +166,8 @@ architecturally.
    list).
 4. Fill in `BACKEND_URL` and `SUPABASE_ANON_KEY` near the top of
    `frontend/hub.html`, then deploy that file as a static site.
-5. (Optional) Deploy `netlify/` alongside it for maintenance-mode support,
-   and set up `.github/workflows/keep-alive.yml` in any repo you own if
-   you're on Supabase's free tier.
+5. (Optional) Deploy `netlify/` alongside it for maintenance-mode support.
+   If you're on Supabase's free tier, set up your own scheduled ping
+   (e.g. a GitHub Actions cron job in a repo you control) to keep the
+   project from auto-pausing — not included in this repo, since a demo
+   repo has no real backend to keep alive.

@@ -1909,6 +1909,12 @@
       background: var(--teal-light);
       color: var(--teal);
     }
+    .action-log-datebar button:disabled {
+      opacity: 0.45;
+      cursor: default;
+      background: var(--grey-100);
+      color: var(--navy);
+    }
     .action-log-datebar input[type="date"] {
       flex: 1;
       padding: 6px 8px;
@@ -2704,7 +2710,7 @@
       <form id="loginForm">
         <div class="form-group">
           <label>Email Address</label>
-          <input type="email" id="loginEmail" placeholder="name@[COMPANY_DOMAIN].com" />
+          <input type="email" id="loginEmail" placeholder="name@pqhealth.com" />
         </div>
         <div class="form-group">
           <label>Password</label>
@@ -2893,7 +2899,7 @@
               <input type="text" placeholder="Search clients..." />
             </div>
             <div class="vault-actions" style="display:flex; gap:8px; align-items:center;">
-              <button class="btn-cancel hidden" id="deleteClientBtn" onclick="openDeleteClientModal()" title="Permanently remove a client's Hub record - mainly for cleaning up test/duplicate entries, expected to be rare" style="padding:10px 12px;">🗑</button>
+              <button class="btn-cancel hidden" id="deleteClientBtn" onclick="openDeleteClientModal()" title="Permanently delete a client's Hub record AND its Google Sheet/Apps Script project in Drive - not reversible, expected to be rare" style="padding:10px 12px;">🗑</button>
               <button class="btn-add" id="addClientBtn" onclick="openAutoProvisionModal()" title="Automatically creates the Sheet + Apps Script Web App - no manual Google setup needed">➕ Add Client</button>
             </div>
           </div>
@@ -3142,24 +3148,30 @@
   DELETE CLIENT MODAL — deliberately small/out-of-the-way (a single icon
   button next to Add Client, not a matching primary action), since this
   is expected to be rare: mainly for cleaning up test/duplicate entries,
-  not a routine part of managing real clients. Only removes the Hub
-  record (clients row + anything that cascades from it, e.g.
-  assignments) — the Google Sheet and Apps Script project are NOT
-  touched, since this runs with no Google access at all; those still
-  need to be deleted from Drive by hand, same as the manual cleanup
-  already being done for test clients today.
+  not a routine part of managing real clients. Permanently deletes the
+  Hub record (clients row + anything that cascades from it, e.g.
+  assignments) AND the client's Google Sheet and Apps Script project in
+  Drive via files.delete — not a trash/soft-delete, not reversible.
+  Typing the client's exact name IS the confirmation step here (the
+  Delete button stays disabled until it matches) — there's deliberately
+  no second "are you sure" popup after that, since retyping the name
+  already served that purpose.
   ============================================================ -->
   <div class="add-modal-overlay" id="deleteClientModal">
     <div class="add-modal">
-      <h2>🗑 Delete Client</h2>
-      <p class="sub">Removes this client's Hub record only. The Google Sheet and Apps Script project in Drive are not touched — delete those separately if needed.</p>
+      <h2>⚠️ Delete Client</h2>
+      <p class="sub">This permanently deletes the client's Hub record <strong>and</strong> its Google Sheet and Apps Script project in Drive. This cannot be undone.</p>
       <div class="form-group">
         <label for="deleteClientSelect">Client <span class="required">*</span></label>
-        <select id="deleteClientSelect"></select>
+        <select id="deleteClientSelect" onchange="onDeleteClientSelectChange()"></select>
       </div>
-      <div class="modal-actions">
-        <button type="button" class="btn-cancel" onclick="closeDeleteClientModal()">Cancel</button>
-        <button type="button" class="btn-save" id="deleteClientSubmitBtn" onclick="handleDeleteClientSubmit()" style="background:var(--red);">🗑 Delete</button>
+      <div class="form-group">
+        <label for="deleteClientConfirmInput">Type <strong style="color:var(--red);" id="deleteClientConfirmName"></strong> to confirm</label>
+        <input type="text" id="deleteClientConfirmInput" autocomplete="off" oninput="onDeleteClientConfirmInput()" placeholder="Client name" />
+      </div>
+      <div class="modal-actions" style="gap:24px;">
+        <button type="button" class="btn-cancel" id="deleteClientCancelBtn" onclick="closeDeleteClientModal()">Cancel</button>
+        <button type="button" class="btn-save" id="deleteClientSubmitBtn" onclick="handleDeleteClientSubmit()" style="background:var(--red);" disabled>Delete Permanently</button>
       </div>
     </div>
   </div>
@@ -3491,7 +3503,7 @@
       <form id="forgotPasswordForm">
         <div class="form-group">
           <label>Email Address <span class="required">*</span></label>
-          <input type="email" id="forgotPasswordEmail" placeholder="name@[COMPANY_DOMAIN].com" required />
+          <input type="email" id="forgotPasswordEmail" placeholder="name@pqhealth.com" required />
         </div>
         <div class="modal-actions">
           <button type="button" class="btn-cancel" onclick="closeForgotPasswordModal()">Cancel</button>
@@ -3641,15 +3653,15 @@
     // BACKEND URL – your Supabase Edge Function endpoint, e.g.
     // https://xxxxxxxxxxxx.supabase.co/functions/v1/api
     // ============================================================
-    const BACKEND_URL = 'https://YOUR-PROJECT-REF.supabase.co/functions/v1/api';
+    const BACKEND_URL = 'https://jryzssenfddniznomktx.supabase.co/functions/v1/api';
     // Anon (public) key from Supabase project settings → API. This is safe to
     // ship in frontend code — it only grants permission to CALL the function,
     // all real access control happens inside the function itself.
-    const SUPABASE_ANON_KEY = 'YOUR-ANON-KEY';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyeXpzc2VuZmRkbml6bm9ta3R4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4MjU3NjUsImV4cCI6MjEwNDQwMTc2NX0.wXQUjH8GCbK1txtVnNEjN-5J6ZFbPoTDde89MyG3q6I';
     // Set this once your Netlify site is live if you want the "Launch Dashboard"
     // button on the Centralized Operations view to go somewhere. Leave blank to
     // disable that button gracefully instead of crashing.
-    const DASHBOARD_URL = '';
+    const DASHBOARD_URL = 'https://script.google.com/macros/s/AKfycbzklrzZkzSbxsQFIy2rnECeaa4Il4PuYxfbcFBuB36Dq9FC1FmqjB26YglbiHbYG0Jh/exec';
 
     // ============================================================
     // STATE
@@ -4024,17 +4036,33 @@
       setTimeout(function() { el.classList.remove('log-entry--flash'); }, 2600);
     }
 
+    function goToLogToday() {
+      document.getElementById('actionLogDate').value = todayDateStr();
+      loadActionLog();
+    }
+
     function shiftLogDate(deltaDays) {
       var dateInput = document.getElementById('actionLogDate');
       var d = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
       d.setDate(d.getDate() + deltaDays);
       var mm = String(d.getMonth() + 1).padStart(2, '0');
       var dd = String(d.getDate()).padStart(2, '0');
-      dateInput.value = d.getFullYear() + '-' + mm + '-' + dd;
+      var newDateStr = d.getFullYear() + '-' + mm + '-' + dd;
+      // Nothing logged ahead of today can exist yet — clamp rather than
+      // let the '›' button walk into empty future dates (setting .value
+      // directly bypasses the input's own max= entirely, so this has to
+      // be enforced here too, not just via the HTML attribute below).
+      dateInput.value = newDateStr > todayDateStr() ? todayDateStr() : newDateStr;
       loadActionLog();
     }
 
     function onLogDateChange() {
+      var dateInput = document.getElementById('actionLogDate');
+      // Defense in depth: max= on the input stops the native calendar
+      // picker from offering a future date, but some browsers still let
+      // a future date be typed/pasted in directly, which still fires
+      // this same change handler.
+      if (dateInput.value > todayDateStr()) dateInput.value = todayDateStr();
       loadActionLog();
     }
 
@@ -4046,9 +4074,16 @@
     function loadActionLog() {
       var list = document.getElementById('actionLogList');
       var dateInput = document.getElementById('actionLogDate');
-      if (!dateInput.value) dateInput.value = todayDateStr();
+      // Keeps the native picker's own ceiling pinned to the actual
+      // current day even if this drawer is left open across midnight.
+      dateInput.max = todayDateStr();
+      if (!dateInput.value || dateInput.value > todayDateStr()) dateInput.value = todayDateStr();
       var dateStr = dateInput.value;
       var isToday = dateStr === todayDateStr();
+      var todayBtn = document.getElementById('actionLogTodayBtn');
+      if (todayBtn) todayBtn.disabled = isToday;
+      var nextBtn = document.getElementById('actionLogNextBtn');
+      if (nextBtn) nextBtn.disabled = isToday;
 
       list.innerHTML = '<div class="empty-note">Loading…</div>';
       callBackend('getAuditLog', { category: actionLogCategory, date: dateStr }).then(function(data) {
@@ -4403,6 +4438,7 @@
       startSessionHeartbeat();
       startInactivityWatch(isRestore);
       startTicketNoticePolling();
+      startAssignmentNoticePolling();
       startMaintenanceWatch();
       if (isAdminRole(currentUserRole)) {
         updateActivityBadge();
@@ -4496,6 +4532,46 @@
         // on the next poll - a fire-and-forget call, nothing in the UI
         // depends on it succeeding immediately.
         callBackend('ackTicketNotices', { ticketIds: ids });
+      });
+    }
+
+    // ============================================================
+    // ASSIGNMENT CHANGE NOTICES — same poll/toast/ack pattern as ticket
+    // notices above. Populated server-side when a client this user was
+    // assigned to gets deleted (see deleteClient in api_index.ts), so an
+    // encoder finds out WHY a client disappeared from their list instead
+    // of just noticing it's gone.
+    // ============================================================
+    var assignmentNoticePollId = null;
+
+    function startAssignmentNoticePolling() {
+      stopAssignmentNoticePolling();
+      pollMyAssignmentNotices();
+      assignmentNoticePollId = setInterval(pollMyAssignmentNotices, 25000);
+    }
+
+    function stopAssignmentNoticePolling() {
+      if (assignmentNoticePollId) {
+        clearInterval(assignmentNoticePollId);
+        assignmentNoticePollId = null;
+      }
+    }
+
+    function pollMyAssignmentNotices() {
+      if (!sessionToken) return;
+      callBackend('getMyAssignmentNotices', {}).then(function(data) {
+        if (!data.success || !data.notices || !data.notices.length) return;
+        var ids = data.notices.map(function(n) { return n.id; });
+        data.notices.forEach(function(n) {
+          showToast(n.message, 'info', 9000);
+        });
+        // The client list this user sees is now stale (a client they had
+        // just got deleted, or their assignments changed) - refresh it
+        // rather than waiting for their next login.
+        loadClients();
+        // Acknowledge right away so the same notice doesn't toast again on
+        // the next poll - fire-and-forget, same as ticket notices above.
+        callBackend('ackAssignmentNotices', { noticeIds: ids });
       });
     }
 
@@ -4636,6 +4712,7 @@
       stopActivityPolling();
       stopHelpTicketPolling();
       stopTicketNoticePolling();
+      stopAssignmentNoticePolling();
       stopMaintenanceWatch();
       safeSessionRemove('pq_hub_session');
       safeSessionRemove('pq_hub_last_activity');
@@ -5936,7 +6013,7 @@
             setAutoProvisionStatus('', null);
             loadClients();
             closeAutoProvisionModal();
-            openProvisionSuccessModal(name, data.autoIdTriggerInstalled, data.shareFailuresCount);
+            openProvisionSuccessModal(name, data.shareFailuresCount);
           } else {
             setAutoProvisionStatus('Failed to provision client: ' + (data.error || 'Unknown error'), 'error');
           }
@@ -5975,7 +6052,14 @@
           select.appendChild(opt);
         });
       }
+      onDeleteClientSelectChange();
       document.getElementById('deleteClientModal').classList.add('open');
+      // Default focus goes to Cancel, not the (disabled) Delete button -
+      // pressing Enter by reflex should never trigger a permanent delete.
+      setTimeout(function() {
+        var cancelBtn = document.getElementById('deleteClientCancelBtn');
+        if (cancelBtn) cancelBtn.focus();
+      }, 0);
     }
 
     function closeDeleteClientModal() {
@@ -5986,47 +6070,69 @@
       if (e.target === this) closeDeleteClientModal();
     });
 
+    // Re-arms the typed-confirmation whenever the selected client changes,
+    // so switching clients in the dropdown can't leave a stale match from
+    // a previously-typed name still enabling Delete for the new selection.
+    function onDeleteClientSelectChange() {
+      var select = document.getElementById('deleteClientSelect');
+      var name = (select.options[select.selectedIndex] && !select.options[select.selectedIndex].disabled)
+        ? select.options[select.selectedIndex].textContent : '';
+      document.getElementById('deleteClientConfirmName').textContent = name;
+      document.getElementById('deleteClientConfirmInput').value = '';
+      document.getElementById('deleteClientSubmitBtn').disabled = true;
+    }
+
+    function onDeleteClientConfirmInput() {
+      var select = document.getElementById('deleteClientSelect');
+      var name = (select.options[select.selectedIndex] && !select.options[select.selectedIndex].disabled)
+        ? select.options[select.selectedIndex].textContent : '';
+      var typed = document.getElementById('deleteClientConfirmInput').value;
+      document.getElementById('deleteClientSubmitBtn').disabled = !name || typed !== name;
+    }
+
     function handleDeleteClientSubmit() {
       var select = document.getElementById('deleteClientSelect');
       var clientId = select.value;
       var clientName = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : 'this client';
-      if (!clientId) return;
+      var typed = document.getElementById('deleteClientConfirmInput').value;
+      // Belt-and-suspenders — the button should already be disabled unless
+      // the typed name matches exactly, but never trust client-side state
+      // alone before a permanent, irreversible delete.
+      if (!clientId || typed !== clientName) return;
 
-      openConfirmModal(
-        'Permanently delete "' + clientName + '" from the Hub? This cannot be undone, and does NOT delete its Google Sheet or Apps Script project - those need to be removed from Drive separately.',
-        function() {
-          var restore = setButtonBusy(document.getElementById('deleteClientSubmitBtn'), 'Deleting...');
-          callBackend('deleteClient', { clientId: clientId })
-            .then(function(data) {
-              restore();
-              if (data.success) {
-                closeDeleteClientModal();
-                loadClients();
-                showToast('"' + clientName + '" was removed from the Hub. Remember to clean up its Sheet/Apps Script project in Drive if it is no longer needed.', 'success', 7000);
-              } else {
-                showToast('Failed to delete client: ' + data.error, 'error');
-              }
-            })
-            .catch(function(err) {
-              restore();
-              showToast('Failed to delete client: ' + (err && err.message ? err.message : 'Network error'), 'error');
-            });
-        }
-      );
+      var restore = setButtonBusy(document.getElementById('deleteClientSubmitBtn'), 'Deleting...');
+      callBackend('deleteClient', { clientId: clientId })
+        .then(function(data) {
+          restore();
+          if (data.success) {
+            closeDeleteClientModal();
+            loadClients();
+            // The DB-level cascade already emptied any affected encoder's
+            // assignment the instant the clients row went (see deleteClient
+            // in api_index.ts) - but this admin's own Encoder Assignments
+            // table was rendered from allEncoders BEFORE that happened, and
+            // nothing was telling it to re-fetch. Without this, the deleted
+            // client's name keeps showing as an assigned pill here until
+            // the admin happens to navigate away and back or reload the
+            // page - the data was already correct, the screen just wasn't.
+            loadEncoderAssignmentsData();
+            var dr = data.driveResults || {};
+            var driveNote = 'Sheet: ' + (dr.sheet || 'n/a') + '. Script: ' + (dr.script || 'n/a') + '.';
+            showToast('"' + clientName + '" was permanently deleted. ' + driveNote, 'success', 9000);
+          } else {
+            showToast('Failed to delete client: ' + data.error, 'error');
+          }
+        })
+        .catch(function(err) {
+          restore();
+          showToast('Failed to delete client: ' + (err && err.message ? err.message : 'Network error'), 'error');
+        });
     }
 
-    function openProvisionSuccessModal(name, autoIdTriggerInstalled, shareFailuresCount) {
+    function openProvisionSuccessModal(name, shareFailuresCount) {
       var msg = 'The project is now ready to go!';
-      // autoIdTriggerInstalled kept intentionally - dropping it silently
-      // would mean an admin has no way to know why Vaccination IDs
-      // aren't auto-generating for this client later, with nothing in
-      // the UI pointing back to this one-time setup step. Kept to a
-      // single short line so it doesn't undo the simplification above.
-      if (!autoIdTriggerInstalled) {
-        msg += ' One manual step needed: run setupRecipientAutoIdTrigger once in this project\'s Apps Script editor to enable auto-generated Vaccination IDs.';
-      }
-      // Same reasoning for share failures - an admin who can't open the
-      // new Sheet directly needs a pointer to why, not silence.
+      // An admin who can't open the new Sheet directly needs a pointer to
+      // why, not silence.
       if (shareFailuresCount) {
         msg += ' Note: the Sheet/Script could not be shared with ' + shareFailuresCount + ' admin account(s) automatically - check the Action Log for which, and share manually in Drive if needed.';
       }
@@ -7559,7 +7665,8 @@
     <div class="action-log-datebar">
       <button type="button" onclick="shiftLogDate(-1)">‹</button>
       <input type="date" id="actionLogDate" onchange="onLogDateChange()" />
-      <button type="button" onclick="shiftLogDate(1)">›</button>
+      <button type="button" id="actionLogNextBtn" onclick="shiftLogDate(1)">›</button>
+      <button type="button" id="actionLogTodayBtn" onclick="goToLogToday()" title="Jump back to today">Today</button>
     </div>
     <div class="action-log-list" id="actionLogList">
       <div class="empty-note">Loading…</div>

@@ -640,7 +640,7 @@ MAIN APP
             <input type="text" id="clientSearchInput" placeholder="Search clients..." oninput="renderClients()" />
           </div>
           <div class="vault-actions" style="display:flex; gap:8px; align-items:center;">
-            <button class="btn-cancel hidden" id="deleteClientBtn" onclick="openDeleteClientModal()" title="Permanently remove a client's Hub record" style="padding:10px 12px; background:transparent; border:1px solid var(--grey-200); border-radius:8px; cursor:pointer;">&#128465;</button>
+            <button class="btn-cancel hidden" id="deleteClientBtn" onclick="openDeleteClientModal()" title="Permanently delete this client — Hub record, Google Sheet, and Apps Script project" style="padding:10px 12px; background:transparent; border:1px solid var(--grey-200); border-radius:8px; cursor:pointer;">&#128465;</button>
             <button class="btn-add" id="addClientBtn" onclick="openAutoProvisionModal()" title="Automatically creates the Sheet + Apps Script Web App">&#10133; Add Client</button>
           </div>
         </div>
@@ -812,12 +812,19 @@ MAIN APP
 <!-- DELETE CLIENT MODAL -->
 <div class="add-modal-overlay" id="deleteClientModal">
   <div class="add-modal">
-    <h2>&#128465; Delete Client</h2>
-    <p class="sub">Removes this client's Hub record only. The Google Sheet and Apps Script project in Drive are not touched &mdash; delete those separately if needed.</p>
-    <div class="form-group"><label for="deleteClientSelect">Client <span class="required">*</span></label><select id="deleteClientSelect"></select></div>
-    <div class="modal-actions">
-      <button type="button" class="btn-cancel" onclick="closeDeleteClientModal()">Cancel</button>
-      <button type="button" class="btn-save" id="deleteClientSubmitBtn" onclick="handleDeleteClientSubmit()" style="background:var(--red);">&#128465; Delete</button>
+    <h2>&#9888;&#65039; Delete Client</h2>
+    <p class="sub">This permanently deletes the client's Hub record <strong>and</strong> its Google Sheet and Apps Script project in Drive. This cannot be undone.</p>
+    <div class="form-group">
+      <label for="deleteClientSelect">Client <span class="required">*</span></label>
+      <select id="deleteClientSelect" onchange="onDeleteClientSelectChange()"></select>
+    </div>
+    <div class="form-group">
+      <label for="deleteClientConfirmInput">Type <strong style="color:var(--red);" id="deleteClientConfirmName"></strong> to confirm</label>
+      <input type="text" id="deleteClientConfirmInput" autocomplete="off" oninput="onDeleteClientConfirmInput()" placeholder="Client name" />
+    </div>
+    <div class="modal-actions" style="gap:24px;">
+      <button type="button" class="btn-cancel" id="deleteClientCancelBtn" onclick="closeDeleteClientModal()">Cancel</button>
+      <button type="button" class="btn-save" id="deleteClientSubmitBtn" onclick="handleDeleteClientSubmit()" style="background:var(--red);" disabled>Delete Permanently</button>
     </div>
   </div>
 </div>
@@ -1884,27 +1891,50 @@ function openDeleteClientModal() {
   } else {
     clients.forEach(function(c){ var opt = document.createElement('option'); opt.value = c.id; opt.textContent = c.name; select.appendChild(opt); });
   }
+  document.getElementById('deleteClientConfirmInput').value = '';
+  document.getElementById('deleteClientSubmitBtn').disabled = true;
+  onDeleteClientSelectChange();
   document.getElementById('deleteClientModal').classList.add('open');
 }
 function closeDeleteClientModal() { document.getElementById('deleteClientModal').classList.remove('open'); }
 document.getElementById('deleteClientModal').addEventListener('click', function(e){ if (e.target === this) closeDeleteClientModal(); });
+
+// Typing the client's exact name IS the confirmation step here (the Delete
+// button stays disabled until it matches) — matches the real Hub, which
+// deliberately skips a second "are you sure" popup since retyping the name
+// already served that purpose.
+function onDeleteClientSelectChange() {
+  var select = document.getElementById('deleteClientSelect');
+  var clientName = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : '';
+  document.getElementById('deleteClientConfirmName').textContent = clientName;
+  document.getElementById('deleteClientConfirmInput').value = '';
+  document.getElementById('deleteClientSubmitBtn').disabled = true;
+}
+function onDeleteClientConfirmInput() {
+  var select = document.getElementById('deleteClientSelect');
+  var clientName = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : '';
+  var typed = document.getElementById('deleteClientConfirmInput').value;
+  document.getElementById('deleteClientSubmitBtn').disabled = (typed !== clientName || !clientName);
+}
 
 function handleDeleteClientSubmit() {
   var select = document.getElementById('deleteClientSelect');
   var clientId = parseInt(select.value, 10);
   var clientName = select.options[select.selectedIndex] ? select.options[select.selectedIndex].textContent : 'this client';
   if (!clientId) return;
-  openConfirmModal('Permanently delete "' + clientName + '" from the Hub? This cannot be undone, and does NOT delete its Google Sheet or Apps Script project — those need to be removed from Drive separately.', function(){
-    var restore = setButtonBusy(document.getElementById('deleteClientSubmitBtn'), 'Deleting...');
-    fakeBackend(function(){
-      clients = clients.filter(function(c){ return c.id !== clientId; });
-      encoders.forEach(function(en){ en.clientIds = en.clientIds.filter(function(id){ return id !== clientId; }); });
-      logActivity('vxsync', 'Client ' + clientName + ' deleted');
-      return { success:true };
-    }).then(function(){
-      restore(); closeDeleteClientModal(); renderClients();
-      showToast('"' + clientName + '" was removed from the Hub. Remember to clean up its Sheet/Apps Script project in Drive if it is no longer needed.', 'success', 7000);
-    });
+  var restore = setButtonBusy(document.getElementById('deleteClientSubmitBtn'), 'Deleting...');
+  fakeBackend(function(){
+    var affectedEncoders = encoders.filter(function(en){ return en.clientIds.indexOf(clientId) !== -1; }).length;
+    clients = clients.filter(function(c){ return c.id !== clientId; });
+    encoders.forEach(function(en){ en.clientIds = en.clientIds.filter(function(id){ return id !== clientId; }); });
+    logActivity('vxsync', 'Client ' + clientName + ' permanently deleted (Hub record + Drive Sheet + Apps Script project)');
+    return { success:true, affectedEncoders: affectedEncoders };
+  }).then(function(result){
+    restore(); closeDeleteClientModal(); renderClients();
+    var notice = result.affectedEncoders > 0
+      ? result.affectedEncoders + ' encoder(s) previously assigned to it were notified.'
+      : 'No encoders were assigned to it.';
+    showToast('"' + clientName + '" was permanently deleted — its Hub record, Google Sheet, and Apps Script project were removed from Drive. ' + notice, 'success', 7000);
   });
 }
 

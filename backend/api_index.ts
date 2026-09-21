@@ -41,7 +41,7 @@ const sb = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 //   IT_SUPPORT_EMAIL     where "Contact IT Support" tickets are emailed -
 //                        usually the same address as EMAIL_SMTP_USER
 //   HUB_URL              your live Netlify URL, e.g.
-//                        https://your-hub.netlify.app - used only
+//                        https://YOUR-HUB-SITE.netlify.app - used only
 //                        to link back to the Hub from emails
 // If these aren't set yet, email-sending functions log the error and
 // return {success:false} instead of crashing the whole request - so the
@@ -183,6 +183,28 @@ async function googleFetch_(url: string, accessToken: string, init?: RequestInit
   return data;
 }
 
+// Deliberately separate from googleFetch_ above (not a reuse) - a DELETE
+// call where a 404 means "already gone, treat as success" is specific to
+// file cleanup (deleteClient), and googleFetch_ is shared by provisioning
+// calls where a 404 should stay a real failure. files.delete also returns
+// 204 with no body on success, unlike the JSON responses googleFetch_
+// expects.
+async function deleteGoogleFile_(fileId: string, accessToken: string): Promise<{ status: "deleted" | "already_gone" }> {
+  const res = await fetch(`https://www.googleapis.com/drive/v3/files/${fileId}`, {
+    method: "DELETE",
+    headers: { Authorization: "Bearer " + accessToken },
+  });
+  if (res.status === 404) return { status: "already_gone" };
+  if (!res.ok) {
+    const text = await res.text();
+    let data: any = null;
+    try { data = text ? JSON.parse(text) : null; } catch { /* non-JSON response body */ }
+    const msg = data && data.error ? (data.error.message || JSON.stringify(data.error)) : (text ? text.slice(0, 200) : String(res.status));
+    throw new Error(`Drive delete of ${fileId} failed (${res.status}): ${msg}`);
+  }
+  return { status: "deleted" };
+}
+
 // Rewrites one CONFIG field in the template source by field NAME, not by
 // matching specific placeholder text - so it doesn't matter what dummy
 // value sits in the uploaded template. Matches a quoted string, a
@@ -201,6 +223,23 @@ function jsStringLiteral_(value: string): string {
   return "'" + value.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/\r?\n/g, "\\n") + "'";
 }
 
+// Defensive: normalize "smart"/typographic quotes back to plain ASCII
+// quotes before any CONFIG field substitution runs. A Code.gs template
+// that got opened, edited, or even just pasted through a word processor
+// or notes app at ANY point before being uploaded to the vxsync-template
+// bucket (Word, Google Docs, and several others auto-"curl" quotes by
+// default) commonly turns straight ' " into curly '‘' '’' '“' '”' - which reads
+// identically to a human but breaks setConfigField_'s regex below. Fixing
+// only the one field that happens to throw first (clientName) would still
+// leave every OTHER quoted CONFIG field (adminEmails, hubApiUrl, ...)
+// silently corrupted the same way, just not yet discovered - sanitizing
+// the whole file once, up front, is the actual fix, not a per-field patch.
+function normalizeSmartQuotes_(text: string): string {
+  return text
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"');
+}
+
 function setConfigField_(source: string, field: string, valueLiteral: string): string {
   // Trailing comma is OPTIONAL and matched-but-not-required - whichever
   // CONFIG field the template happens to end the object with (no comma
@@ -209,7 +248,15 @@ function setConfigField_(source: string, field: string, valueLiteral: string): s
   // broke the moment a template put a different field last.
   const re = new RegExp(`(\\b${field}\\s*:\\s*)(?:'[^']*'|\\[[^\\]]*\\]|-?\\d+)(\\s*,?)`);
   if (!re.test(source)) {
-    throw new Error(`Template error: CONFIG.${field} not found in the uploaded Code.gs - has its format changed?`);
+    // Show what's actually there for this field, if anything, so the NEXT
+    // format mismatch (a different field, a shape neither straight nor
+    // smart quotes explain) is diagnosable straight from the error message
+    // instead of another round of guessing blind.
+    const lineMatch = source.match(new RegExp(`^.*\\b${field}\\s*:.*$`, "m"));
+    const detail = lineMatch
+      ? ` Found this line instead: "${lineMatch[0].trim()}"`
+      : " That key wasn't found in the file at all - check for a typo or a renamed field.";
+    throw new Error(`Template error: CONFIG.${field} not found in the uploaded Code.gs - has its format changed?${detail}`);
   }
   return source.replace(re, `$1${valueLiteral}$2`);
 }
@@ -255,7 +302,7 @@ async function sendEmail(to: string | string[], subject: string, html: string, r
 // so a password-reset email, a ticket notification, and a patch-notes
 // email all look like they came from the same product instead of each
 // being its own one-off inline HTML string. Matches the Hub's own navy/
-// teal palette (same --navy/--teal values as hub.html
+// teal palette (same --navy/--teal values as the Hub's own frontend
 // and VxSync). Deliberately plain: no logo image (an emailed <img> from an
 // external URL gets blocked-by-default in most mail clients until the
 // recipient clicks "show images", so a text wordmark is more reliable),
@@ -297,7 +344,7 @@ function emailShell(opts: { preheader?: string; title: string; bodyHtml: string;
 }
 
 // Tighten this to your actual Netlify URL once the site is live, e.g.
-// "https://your-hub.netlify.app" instead of "*".
+// "https://YOUR-HUB-SITE.netlify.app" instead of "*".
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -376,6 +423,18 @@ function randomPassword(len = 12) {
   let out = "";
   for (let i = 0; i < len; i++) out += chars[Math.floor(Math.random() * chars.length)];
   return out;
+}
+
+// Deliberately simple, not full RFC 5322 - just enough to catch the
+// realistic typo cases (missing @, missing domain, stray spaces, a
+// pasted name instead of an address) without rejecting a valid-but-
+// unusual real address. Shared by every place an admin types an
+// encoder/admin email in directly (createEncoder, updateEncoderInfo,
+// addAdmin, assignEncoderByEmail) - the frontend's type="email" inputs
+// are a convenience, not the actual check, since this backend is the
+// real security boundary the same way requireAdmin() is.
+function isValidEmail_(email: unknown): boolean {
+  return typeof email === "string" && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
 function formatTimestamp() {
@@ -1150,6 +1209,7 @@ serve(async (req) => {
 
         const { email, name } = payload;
         if (!email || !name) return json({ success: false, error: "Email and name are required." });
+        if (!isValidEmail_(email)) return json({ success: false, error: `"${email}" doesn't look like a valid email address.` });
 
         const { data: existingUser } = await sb.from("users").select("id, role").eq("email", email).maybeSingle();
         if (existingUser) {
@@ -1183,6 +1243,7 @@ serve(async (req) => {
         if (!userId || !name || !email) {
           return json({ success: false, error: "userId, name, and email are required." });
         }
+        if (!isValidEmail_(email)) return json({ success: false, error: `"${email}" doesn't look like a valid email address.` });
 
         const { error } = await sb
           .from("users")
@@ -1363,7 +1424,11 @@ serve(async (req) => {
             downloaded[fname] = await blob.text();
           }
 
-          let code = downloaded["Code.gs"];
+          // Sanitize BEFORE any field substitution runs - see
+          // normalizeSmartQuotes_'s comment for why this has to happen to
+          // the whole file up front, not just to whichever field
+          // setConfigField_ happens to hit first.
+          let code = normalizeSmartQuotes_(downloaded["Code.gs"]);
           code = setConfigField_(code, "clientName", jsStringLiteral_(name));
           code = setConfigField_(code, "adminEmails", "[" + adminEmails.map(jsStringLiteral_).join(", ") + "]");
           code = setConfigField_(code, "nurseEmails", "[]");
@@ -1380,14 +1445,18 @@ serve(async (req) => {
             exceptionLogging: "STACKDRIVER",
             runtimeVersion: "V8",
             webapp: { access: "ANYONE", executeAs: "USER_ACCESSING" },
-            // executionApi lets scripts.run invoke a function in this
-            // project remotely (see the setupRecipientAutoIdTrigger call
-            // below) - a single deployment can expose both this AND the
-            // webapp entry point at once, confirmed against Google's own
-            // manifest docs rather than assumed. "MYSELF" is correct here:
-            // the only caller is this same provisioning flow, using the
-            // same Google account that owns the project.
-            executionApi: { access: "MYSELF" },
+            // No executionApi entry: this deployment no longer needs
+            // scripts.run exposed. The Hub used to remotely invoke
+            // setupRecipientAutoIdTrigger here to install an auto-ID
+            // trigger in this standalone project - removed as of the
+            // investigation that found a completely separate script,
+            // bound directly to the client's Sheet (carried forward from
+            // the master template on every Drive copy), already assigns
+            // Recipient IDs on direct edit and always has, independent of
+            // this project entirely. See the removed
+            // setupRecipientAutoIdTrigger / recipientsMasterOnEdit_ /
+            // isRecipientAutoIdTriggerInstalled functions' git history in
+            // Code.gs for the full writeup if this ever needs revisiting.
           };
 
           // 4) Push all four files (+ the manifest) into the new project.
@@ -1439,27 +1508,13 @@ serve(async (req) => {
             throw new Error("Deployment succeeded but no Web App URL came back - check this client's Apps Script project manually.");
           }
 
-          // 6) Best-effort: remotely run setupRecipientAutoIdTrigger so
-          // admins never have to open this project in the Apps Script
-          // editor themselves. Requires GOOGLE_OAUTH_REFRESH_TOKEN to
-          // carry the spreadsheets + script.scriptapp scopes (that
-          // function uses SpreadsheetApp and ScriptApp) - if the token
-          // predates that scope upgrade, this call fails with an
-          // insufficient-scope error and is swallowed here on purpose:
-          // the client is still fully usable without it, just missing
-          // the auto-ID convenience until someone runs it by hand once
-          // (or the token gets upgraded and this client is re-provisioned).
-          let autoIdTriggerInstalled = false;
-          try {
-            await googleFetch_(
-              `https://script.googleapis.com/v1/scripts/${createdScriptId}:run`,
-              accessToken,
-              { method: "POST", body: JSON.stringify({ function: "setupRecipientAutoIdTrigger" }) }
-            );
-            autoIdTriggerInstalled = true;
-          } catch (triggerErr: any) {
-            console.error(`setupRecipientAutoIdTrigger remote run failed for ${name}:`, triggerErr && triggerErr.message);
-          }
+          // Recipient-ID auto-generation on direct Sheet edit is NOT this
+          // project's job and never needs installing here: it's handled
+          // by a separate script bound directly to the client's Sheet
+          // (carried forward from the master template on every Drive
+          // copy), confirmed working independently of anything in this
+          // standalone project. See the manifest comment above for the
+          // full writeup of what used to live here.
 
           const sheetUrl = `https://docs.google.com/spreadsheets/d/${createdSheetId}/edit`;
           // Status stays "Ongoing" even on a clean success - provisioning
@@ -1469,14 +1524,18 @@ serve(async (req) => {
           // added client - auto-provisioning shouldn't skip that judgment.
           const { error: updateErr } = await sb
             .from("clients")
-            .update({ app_url: webAppUrl, sheet_url: sheetUrl })
+            .update({
+              app_url: webAppUrl,
+              sheet_url: sheetUrl,
+              drive_sheet_id: createdSheetId,
+              drive_script_id: createdScriptId,
+            })
             .eq("id", clientId);
           if (updateErr) throw new Error("Google provisioning succeeded but saving the URLs back to the client record failed: " + updateErr.message);
 
           const actor = await getActor(session);
           const logSuffix =
-            (autoIdTriggerInstalled ? "" : " [auto-ID trigger not installed - manual setupRecipientAutoIdTrigger run needed]") +
-            (shareFailures.length ? ` [Drive sharing failed for: ${shareFailures.join("; ")}]` : "");
+            shareFailures.length ? ` [Drive sharing failed for: ${shareFailures.join("; ")}]` : "";
           logEvent("vxsync", `Client project ${name} auto-provisioned by ${actor.name}${logSuffix}`, actor, {
             clientId,
             actionType: "data_edit",
@@ -1486,7 +1545,6 @@ serve(async (req) => {
             clientId,
             appUrl: webAppUrl,
             sheetUrl,
-            autoIdTriggerInstalled,
             shareFailuresCount: shareFailures.length,
           });
         } catch (err: any) {
@@ -1791,6 +1849,7 @@ serve(async (req) => {
         const { email, name } = payload;
         const newRole = payload.role === "it_support" ? "it_support" : "admin";
         if (!email || !name) return json({ success: false, error: "Email and name are required." });
+        if (!isValidEmail_(email)) return json({ success: false, error: `"${email}" doesn't look like a valid email address.` });
 
         const plain = randomPassword();
         const hash = await bcrypt.hash(plain, 10);
@@ -2299,6 +2358,49 @@ serve(async (req) => {
       }
 
       // --------------------------------------------------------
+      // Same pattern as getMyTicketNotices - polled by every logged-in
+      // role, only ever this user's own unacknowledged rows. Populated by
+      // deleteClient when a client this user was assigned to gets deleted,
+      // so an encoder finds out WHY a client vanished from their list
+      // instead of just noticing it's gone.
+      case "getMyAssignmentNotices": {
+        const session = await getSession(token);
+        if (!session) return json({ success: false, error: "Please log in again." });
+
+        const { data } = await sb
+          .from("assignment_notices")
+          .select("id, message, created_at")
+          .eq("user_id", session.user_id)
+          .eq("acknowledged", false);
+
+        const notices = (data || []).map((n: any) => ({
+          id: n.id,
+          message: n.message,
+          createdAt: n.created_at,
+        }));
+        return json({ success: true, notices });
+      }
+
+      // --------------------------------------------------------
+      case "ackAssignmentNotices": {
+        const session = await getSession(token);
+        if (!session) return json({ success: false, error: "Please log in again." });
+
+        const noticeIds = Array.isArray(payload.noticeIds) ? payload.noticeIds : [];
+        if (!noticeIds.length) return json({ success: true });
+
+        // Scoped to this user's own notices too, not just the id list, so
+        // a caller can never mark someone else's notice as acknowledged.
+        const { error: ackErr } = await sb
+          .from("assignment_notices")
+          .update({ acknowledged: true })
+          .in("id", noticeIds)
+          .eq("user_id", session.user_id);
+        if (ackErr) return json({ success: false, error: ackErr.message });
+        return json({ success: true });
+      }
+
+      // --------------------------------------------------------
       // PATCH NOTES - a "what's changed" banner shown once to every Hub
       // user (admin/IT Support). Two ways to post one:
       //   1) From inside the Hub, logged in as an admin/IT Support (a real
@@ -2377,16 +2479,20 @@ serve(async (req) => {
       }
 
       // --------------------------------------------------------
-      // Admin-only, deliberately narrow: removes ONLY the Hub's own
-      // `clients` row (and whatever cascades from it at the database
-      // level - e.g. `assignments` via its own ON DELETE CASCADE;
-      // `audit_log.client_id` is ON DELETE SET NULL, so history is kept,
-      // just unlinked). Does NOT touch Google at all - no Drive delete,
-      // no Apps Script project delete - since this function has no way
-      // to know whether an admin wants that Sheet/script gone too versus
-      // just cleaning up a duplicate/mistaken Hub entry. Expected to be a
-      // rare, mostly-testing action - see the Hub's own small icon-only
-      // button placement next to Add Client.
+      // Admin-only. Deletes the Hub's `clients` row (cascading to
+      // `assignments` via its own ON DELETE CASCADE and to
+      // `client_vxsync_sync` the same way; `audit_log.client_id` is
+      // ON DELETE SET NULL, so history is kept, just unlinked) AND
+      // permanently deletes the client's Google Sheet and Apps Script
+      // project via Drive's files.delete - not a trash/soft-delete.
+      // Drive cleanup runs FIRST, but the clients row is deleted
+      // regardless of whether Drive cleanup succeeds: a client with a
+      // lingering Drive file but no more Hub access is a smaller
+      // problem than a client that still has live access because we
+      // were waiting on Drive. Any Drive failure (or a client
+      // provisioned before drive_sheet_id/drive_script_id existed) is
+      // reported back in driveResults so it can be cleaned up by hand,
+      // never silently swallowed.
       // --------------------------------------------------------
       case "deleteClient": {
         const session = await requireAdmin(token);
@@ -2395,18 +2501,95 @@ serve(async (req) => {
         const clientId = payload.clientId;
         if (!clientId) return json({ success: false, error: "clientId is required." });
 
-        const { data: client } = await sb.from("clients").select("name").eq("id", clientId).maybeSingle();
+        const { data: client } = await sb
+          .from("clients")
+          .select("name, drive_sheet_id, drive_script_id")
+          .eq("id", clientId)
+          .maybeSingle();
         if (!client) return json({ success: false, error: "Client not found." });
 
+        // Captured BEFORE the delete below - assignments.client_id cascades
+        // away at the DB level the instant the clients row goes, so this is
+        // the last point these encoders' user_ids are still findable via
+        // this client. Used after the delete to notify each of them (see
+        // assignment_notices insert further down).
+        const { data: affectedAssignments } = await sb
+          .from("assignments")
+          .select("user_id")
+          .eq("client_id", clientId);
+
+        const driveResults: { sheet?: string; script?: string } = {};
+        let accessToken: string | null = null;
+        try {
+          accessToken = await getGoogleAccessToken_();
+        } catch (tokenErr: any) {
+          const msg = "Drive cleanup skipped (" + (tokenErr && tokenErr.message ? tokenErr.message : String(tokenErr)) + ")";
+          if (client.drive_sheet_id) driveResults.sheet = msg;
+          if (client.drive_script_id) driveResults.script = msg;
+        }
+
+        if (accessToken) {
+          if (client.drive_sheet_id) {
+            try {
+              const r = await deleteGoogleFile_(client.drive_sheet_id, accessToken);
+              driveResults.sheet = r.status === "already_gone" ? "already gone" : "deleted";
+            } catch (err: any) {
+              driveResults.sheet = "FAILED: " + (err && err.message ? err.message : String(err));
+            }
+          } else {
+            driveResults.sheet = "not recorded (provisioned before drive_sheet_id was tracked - clean up manually in Drive if needed)";
+          }
+
+          if (client.drive_script_id) {
+            try {
+              const r = await deleteGoogleFile_(client.drive_script_id, accessToken);
+              driveResults.script = r.status === "already_gone" ? "already gone" : "deleted";
+            } catch (err: any) {
+              driveResults.script = "FAILED: " + (err && err.message ? err.message : String(err));
+            }
+          } else {
+            driveResults.script = "not recorded (provisioned before drive_script_id was tracked - clean up manually in Drive if needed)";
+          }
+        }
+
         const { error: delErr } = await sb.from("clients").delete().eq("id", clientId);
-        if (delErr) return json({ success: false, error: "Could not delete client: " + delErr.message });
+        if (delErr) {
+          return json({
+            success: false,
+            error: "Drive cleanup finished but the client row could not be deleted: " + delErr.message,
+            driveResults,
+          });
+        }
 
         const actor = await getActor(session);
-        logEvent("vxsync", `Client ${client.name} deleted from the Hub by ${actor.name} (Google Sheet/Apps Script project NOT deleted - Drive cleanup, if wanted, is manual)`, actor, {
+        const cleanupSummary = `Sheet: ${driveResults.sheet || "n/a"}; Script: ${driveResults.script || "n/a"}`;
+        logEvent("vxsync", `Client ${client.name} deleted from the Hub by ${actor.name} (${cleanupSummary})`, actor, {
           clientId,
           actionType: "data_edit",
         });
-        return json({ success: true });
+
+        // Notify every encoder who was assigned to this now-deleted client -
+        // never blocks the response on a failure here, since the delete
+        // itself already succeeded above, but every notice is still
+        // attempted, not silently skipped after the first error.
+        for (const row of affectedAssignments || []) {
+          const userId = (row as any).user_id;
+          if (!userId) continue;
+          const { data: remaining } = await sb
+            .from("assignments")
+            .select("clients(name)")
+            .eq("user_id", userId);
+          const remainingNames = (remaining || [])
+            .map((r: any) => r.clients && r.clients.name)
+            .filter(Boolean);
+          const message = remainingNames.length
+            ? `"${client.name}" was deleted. Your updated assignments are: ${remainingNames.join(", ")}.`
+            : `"${client.name}" was deleted. You are now unassigned from all clients.`;
+          const { error: noticeErr } = await sb.from("assignment_notices").insert({ user_id: userId, message });
+          if (noticeErr) console.error("assignment_notices insert failed:", noticeErr.message);
+        }
+
+        return json({ success: true, driveResults });
       }
 
       // --------------------------------------------------------
@@ -2595,6 +2778,7 @@ serve(async (req) => {
         if (!clientId || !email || !name) {
           return json({ success: false, error: "clientId, email, and name are required." });
         }
+        if (!isValidEmail_(email)) return json({ success: false, error: `"${email}" doesn't look like a valid email address.` });
 
         const { data: existingUser } = await sb.from("users").select("id, role").eq("email", email).maybeSingle();
         if (existingUser && (existingUser.role === "admin" || existingUser.role === "it_support")) {
@@ -2652,7 +2836,15 @@ serve(async (req) => {
         if (!session) return json({ success: false, error: "Admins only." });
 
         const category = payload.category === "password" ? "password" : "vxsync";
-        const dateStr = /^\d{4}-\d{2}-\d{2}$/.test(payload.date || "") ? payload.date : todayManilaDateStr();
+        const todayStr = todayManilaDateStr();
+        // Nothing can be logged ahead of today - the frontend's date
+        // picker already stops at today (max= plus a JS clamp on both
+        // the shift buttons and manual typing), but this is the actual
+        // security boundary: a future date passed directly to this
+        // endpoint, bypassing the UI entirely, gets clamped here too
+        // rather than trusted.
+        let dateStr = /^\d{4}-\d{2}-\d{2}$/.test(payload.date || "") ? payload.date : todayStr;
+        if (dateStr > todayStr) dateStr = todayStr;
         const dayStart = new Date(dateStr + "T00:00:00+08:00");
         const dayEnd = new Date(dateStr + "T23:59:59.999+08:00");
         // Optional "Filter by Action Type" - Data Edits / Access Changes /
