@@ -235,6 +235,7 @@
   .side-drawer-datebar { display:flex; align-items:center; gap:8px; padding:12px 18px; border-bottom:1px solid var(--grey-200); }
   .side-drawer-datebar button { background:var(--grey-100); border:none; border-radius:6px; padding:6px 10px; cursor:pointer; font-weight:700; color:var(--navy); font-size:0.9em; transition:var(--transition); }
   .side-drawer-datebar button:hover { background:var(--teal-light); color:var(--teal); }
+  .side-drawer-datebar button:disabled { opacity:0.45; cursor:default; background:var(--grey-100); color:var(--navy); }
   .side-drawer-datebar input[type="date"] { flex:1; padding:6px 8px; border:1px solid var(--grey-200); border-radius:8px; font-size:0.85em; font-family:inherit; color:var(--navy-dark); }
   .side-drawer-list { flex:1; overflow-y:auto; padding:10px 14px 18px; }
   .side-drawer-list .empty-note { text-align:center; color:var(--grey-600); font-size:0.85em; padding:30px 10px; }
@@ -243,6 +244,13 @@
   .log-entry--created { border-left-color:var(--teal); }
   .log-entry--updated { border-left-color:var(--orange); }
   .log-entry--deleted { border-left-color:var(--red); }
+  /* Persistent "haven't opened the log since this happened" marker. */
+  .log-entry--unread { background: rgba(31, 182, 168, 0.06); }
+  .log-entry--unread .log-entry-type::after {
+    content: ''; display: inline-block; width: 6px; height: 6px;
+    border-radius: 50%; background: var(--teal); margin-left: 4px;
+    vertical-align: middle;
+  }
   .log-entry-icon-col { display:flex; flex-direction:column; align-items:center; gap:5px; flex-shrink:0; width:42px; }
   .log-entry-icon { width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:0.95em; background:var(--grey-100); }
   .log-entry--created .log-entry-icon { background:var(--teal-light); }
@@ -1163,7 +1171,8 @@ MAIN APP
   <div class="side-drawer-datebar">
     <button type="button" onclick="shiftLogDate(-1)">&lsaquo;</button>
     <input type="date" id="actionLogDate" onchange="onLogDateChange()" />
-    <button type="button" onclick="shiftLogDate(1)">&rsaquo;</button>
+    <button type="button" id="actionLogNextBtn" onclick="shiftLogDate(1)">&rsaquo;</button>
+    <button type="button" id="actionLogTodayBtn" onclick="goToLogToday()" title="Jump back to today">Today</button>
   </div>
   <div class="side-drawer-list" id="actionLogList"></div>
 </div>
@@ -1392,6 +1401,12 @@ function closeConfirmModal() {
   document.getElementById('confirmModal').classList.remove('open');
   pendingConfirmAction = null;
 }
+document.getElementById('confirmModal').addEventListener('click', function(e){ if (e.target === this) closeConfirmModal(); });
+document.getElementById('confirmModalBtn').addEventListener('click', function() {
+  var action = pendingConfirmAction;
+  closeConfirmModal();
+  if (action) action();
+});
 function openAlertModal(message, title) {
   document.getElementById('alertModalTitle').textContent = title || 'Notice';
   document.getElementById('alertModalMessage').textContent = message;
@@ -1683,11 +1698,12 @@ function buildLogEntryEl(entryObj) {
   else if (mm = /^Admin account created for (.+)$/i.exec(main)) { icon='🛡️'; type='Admin'; kind='created'; mainHtml='Admin account created for '+logVar(mm[1]); }
   else if (mm = /^Temporary password\/s revoked for (.+)$/i.exec(main)) { icon='🔑'; type='Password'; kind='deleted'; mainHtml='Temporary password/s revoked for '+logVar(mm[1]); }
   else if (mm = /^Temporary password\/s made for (.+)$/i.exec(main)) { icon='🔑'; type='Password'; kind='created'; mainHtml='Temporary password/s made for '+logVar(mm[1]); }
-  else if (mm = /^(.+) entry form opened by (.+)$/i.exec(main)) { icon='💉'; type='Encoder Activity'; kind='updated'; mainHtml=logVar(mm[1])+' entry form opened'; }
+  else if (mm = /^Client (.+) deleted from the Hub \((.+)\)$/i.exec(main)) { icon='🏥'; type='Client'; kind='deleted'; mainHtml='Client '+logVar(mm[1])+' deleted from the Hub ('+mm[2]+')'; }
 
   var entry = document.createElement('div');
   entry.className = 'log-entry log-entry--' + kind;
   entry.id = 'logEntry-' + entryObj.id;
+  if (entryObj.id > lastSeenActivityId) { entry.classList.add('log-entry--unread'); }
   var iconCol = document.createElement('div'); iconCol.className='log-entry-icon-col';
   var iconBox = document.createElement('div'); iconBox.className='log-entry-icon'; iconBox.textContent=icon;
   var typeLabel = document.createElement('div'); typeLabel.className='log-entry-type'; typeLabel.textContent=type;
@@ -1927,7 +1943,7 @@ function handleDeleteClientSubmit() {
     var affectedEncoders = encoders.filter(function(en){ return en.clientIds.indexOf(clientId) !== -1; }).length;
     clients = clients.filter(function(c){ return c.id !== clientId; });
     encoders.forEach(function(en){ en.clientIds = en.clientIds.filter(function(id){ return id !== clientId; }); });
-    logActivity('vxsync', 'Client ' + clientName + ' permanently deleted (Hub record + Drive Sheet + Apps Script project)');
+    logActivity('vxsync', 'Client ' + clientName + ' deleted from the Hub (Sheet: deleted; Script: deleted)');
     return { success:true, affectedEncoders: affectedEncoders };
   }).then(function(result){
     restore(); closeDeleteClientModal(); renderClients();
@@ -2660,21 +2676,39 @@ function updateActivityBadge() {
   var unread = activityLog.filter(function(e){ return e.id > lastSeenActivityId; }).length;
   if (unread > 0) { badge.textContent = unread > 99 ? '99+' : unread; badge.style.display = 'flex'; } else { badge.style.display = 'none'; }
 }
+function goToLogToday() {
+  document.getElementById('actionLogDate').value = todayDateStr();
+  loadActionLog();
+}
 function shiftLogDate(delta) {
   var input = document.getElementById('actionLogDate');
   var d = input.value ? new Date(input.value + 'T00:00:00') : new Date();
   d.setDate(d.getDate() + delta);
-  input.value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  var newDateStr = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+  // Nothing logged ahead of today can exist yet — clamp rather than let
+  // the '>' button walk into empty future dates.
+  input.value = newDateStr > todayDateStr() ? todayDateStr() : newDateStr;
   loadActionLog();
 }
-function onLogDateChange() { loadActionLog(); }
+function onLogDateChange() {
+  var input = document.getElementById('actionLogDate');
+  if (input.value > todayDateStr()) input.value = todayDateStr();
+  loadActionLog();
+}
 function formatLogDateNice(dateStr) { var d = new Date(dateStr+'T00:00:00'); return d.toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric'}); }
 function loadActionLog() {
   var list = document.getElementById('actionLogList');
   var dateInput = document.getElementById('actionLogDate');
-  if (!dateInput.value) dateInput.value = todayDateStr();
+  // Keeps the native picker's own ceiling pinned to today even if this
+  // drawer is left open across midnight.
+  dateInput.max = todayDateStr();
+  if (!dateInput.value || dateInput.value > todayDateStr()) dateInput.value = todayDateStr();
   var dateStr = dateInput.value;
   var isToday = dateStr === todayDateStr();
+  var todayBtn = document.getElementById('actionLogTodayBtn');
+  if (todayBtn) todayBtn.disabled = isToday;
+  var nextBtn = document.getElementById('actionLogNextBtn');
+  if (nextBtn) nextBtn.disabled = isToday;
   var dayStart = new Date(dateStr + 'T00:00:00').getTime();
   var dayEnd = dayStart + 86400000;
   var entries = activityLog.filter(function(e){ return e.category === actionLogCategory && e.createdAt >= dayStart && e.createdAt < dayEnd; });
