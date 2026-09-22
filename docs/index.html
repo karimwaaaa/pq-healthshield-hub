@@ -92,7 +92,7 @@
   .sidebar.collapsed .sidebar-collapse-btn { transform:rotate(180deg); }
   .sidebar.collapsed .nav-item { justify-content:center; padding:12px; margin:2px 6px; width:calc(100% - 12px); }
   .sidebar.collapsed .user-section .user-row { justify-content:center; }
-  .sidebar.collapsed .user-section .logout-btn:not(#navPatchNotes) { display:none; }
+  .sidebar.collapsed .user-section .logout-btn:not(#navPatchNotes) { display:none !important; }
   .sidebar.collapsed .user-section #navPatchNotes { width:40px; height:40px; padding:0; margin:0 auto; border-radius:50%; justify-content:center; }
   .sidebar.collapsed .user-section #navPatchNotes .label { display:none; }
 
@@ -185,7 +185,10 @@
   .ticket-card-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:16px; align-items:start; }
   @media (max-width:1200px) { .ticket-card-grid { grid-template-columns:repeat(2,1fr); } }
   @media (max-width:640px) { .ticket-card-grid { grid-template-columns:1fr; } }
-  .ticket-card { background:#fff; border:1px solid var(--grey-200); border-left:4px solid #b7bec5; border-radius:10px; padding:14px 16px; box-shadow:0 1px 3px rgba(16,24,40,0.06); display:flex; flex-direction:column; gap:10px; cursor:pointer; }
+  .ticket-card { background:#fff; border:1px solid var(--grey-200); border-left:4px solid #b7bec5; border-radius:10px; padding:14px 16px; box-shadow:0 1px 3px rgba(16,24,40,0.06); display:flex; flex-direction:column; gap:10px; cursor:grab; }
+  .ticket-card:active { cursor:grabbing; }
+  .ticket-card.ticket-card--dragging { opacity:0.4; }
+  .ticket-card-grid.ticket-drop-target, .ticket-archive-list.ticket-drop-target { outline:2px dashed var(--teal); outline-offset:4px; border-radius:10px; }
   .ticket-card--low { border-left-color:#7f8c9a; }
   .ticket-card--normal { border-left-color:var(--teal); }
   .ticket-card--high { border-left-color:#f39c12; }
@@ -208,8 +211,12 @@
   .ht-from-name { font-weight:600; color:var(--navy-dark); }
   .ht-from-email { font-size:0.85em; color:var(--grey-600); margin-top:1px; }
   .ht-submitted { color:var(--grey-600); font-size:0.8em; }
-  .ticket-card-issue { background:var(--grey-100); border-radius:8px; padding:10px 12px; }
+  .ticket-card-issue { background:var(--grey-100); border-radius:8px; padding:10px 12px; cursor:pointer; }
+  .ticket-card-issue:hover { background:var(--grey-150,#eef1f3); }
   .ht-issue-preview { display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; white-space:pre-wrap; line-height:1.5; font-size:0.9em; }
+  .ht-issue-full { white-space:pre-wrap; line-height:1.5; font-size:0.9em; }
+  .ht-expand-btn, .ht-minimize-btn { display:inline-block; margin-top:6px; background:transparent; border:none; color:var(--teal); font-weight:600; font-size:0.82em; cursor:pointer; padding:0; }
+  .ht-expand-btn:hover, .ht-minimize-btn:hover { text-decoration:underline; }
   .ticket-card-footer { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:auto; padding-top:4px; border-top:1px solid var(--grey-200); }
   .ht-pill { display:inline-flex; align-items:center; gap:5px; padding:4px 12px; border-radius:999px; font-size:0.8em; font-weight:700; white-space:nowrap; }
   .ht-pill--open { background:rgba(243,156,18,0.14); color:#b9770e; }
@@ -226,7 +233,7 @@
   #actionLogTab:hover { background:#1a9a8e; }
   #ticketArchiveTab { top:auto; bottom:18%; transform:none; }
   .side-badge { display:none; position:absolute; top:-8px; left:-8px; writing-mode:horizontal-tb; background:var(--red); color:#fff; font-size:0.72em; font-weight:700; min-width:18px; height:18px; padding:0 4px; border-radius:999px; align-items:center; justify-content:center; box-shadow:0 2px 6px rgba(0,0,0,0.25); }
-  .side-drawer { position:fixed; top:0; right:0; width:340px; max-width:90vw; height:100vh; background:#fff; box-shadow:var(--shadow-hover); border-left:1px solid var(--grey-200); transform:translateX(100%); transition:transform 0.25s ease; z-index:2500; display:flex; flex-direction:column; }
+  .side-drawer { position:fixed; top:34px; right:0; width:340px; max-width:90vw; height:calc(100vh - 34px); background:#fff; box-shadow:var(--shadow-hover); border-left:1px solid var(--grey-200); transform:translateX(100%); transition:transform 0.25s ease; z-index:2500; display:flex; flex-direction:column; }
   .side-drawer.open { transform:translateX(0); }
   .side-drawer-header { display:flex; align-items:center; justify-content:space-between; padding:16px 18px; background:var(--grey-100); border-bottom:1px solid var(--grey-200); }
   .side-drawer-header strong { color:var(--navy); font-size:0.95em; font-weight:700; }
@@ -237,6 +244,8 @@
   .side-drawer-datebar button:hover { background:var(--teal-light); color:var(--teal); }
   .side-drawer-datebar button:disabled { opacity:0.45; cursor:default; background:var(--grey-100); color:var(--navy); }
   .side-drawer-datebar input[type="date"] { flex:1; padding:6px 8px; border:1px solid var(--grey-200); border-radius:8px; font-size:0.85em; font-family:inherit; color:var(--navy-dark); }
+  .side-drawer-datebar .side-drawer-clear-date { background:transparent; color:var(--grey-600); font-weight:600; }
+  .side-drawer-hint { font-size:0.75em; color:var(--grey-600); padding:10px 18px 0; }
   .side-drawer-list { flex:1; overflow-y:auto; padding:10px 14px 18px; }
   .side-drawer-list .empty-note { text-align:center; color:var(--grey-600); font-size:0.85em; padding:30px 10px; }
   .log-entry { display:flex; gap:14px; padding:14px 8px 14px 10px; border-bottom:1px solid var(--grey-200); border-left:3px solid transparent; }
@@ -261,13 +270,15 @@
   .log-entry-main { font-size:0.85em; font-weight:600; color:var(--navy-dark); line-height:1.4; word-break:break-word; }
   .log-entry-meta { font-size:0.75em; color:var(--grey-600); margin-top:3px; }
   .log-var { color:var(--teal); font-style:italic; font-weight:700; }
-  .ticket-archive-entry { display:flex; align-items:flex-start; gap:10px; padding:10px; border-radius:8px; border-left:3px solid #b7bec5; margin-bottom:8px; background:var(--grey-100); cursor:pointer; }
+  .ticket-archive-entry { display:flex; align-items:flex-start; gap:10px; padding:10px; border-radius:8px; border-left:3px solid #b7bec5; margin-bottom:8px; background:var(--grey-100); cursor:grab; }
+  .ticket-archive-entry:active { cursor:grabbing; }
   .ticket-archive-entry--low { border-left-color:#7f8c9a; }
   .ticket-archive-entry--normal { border-left-color:var(--teal); }
   .ticket-archive-entry--high { border-left-color:#f39c12; }
   .ticket-archive-entry--urgent { border-left-color:var(--red); }
   .ticket-archive-entry-name { font-weight:600; color:var(--navy-dark); font-size:0.85em; }
   .ticket-archive-entry-snippet { font-size:0.78em; color:var(--grey-600); margin-top:2px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ticket-archive-entry-date { font-size:0.72em; color:var(--grey-600); margin-top:4px; }
   .ticket-archive-restore-btn { flex-shrink:0; background:var(--teal-light); color:var(--navy); border:none; border-radius:6px; padding:4px 8px; font-size:0.72em; font-weight:600; cursor:pointer; }
 
   /* ===== MODALS ===== */
@@ -439,7 +450,7 @@
     .sidebar .nav-item span:not(.icon), .sidebar .nav-item .badge, .sidebar .user-section .user-info { display:none; }
     .sidebar .nav-item { justify-content:center; padding:12px; margin:2px 6px; width:calc(100% - 12px); }
     .sidebar .user-section .user-row { justify-content:center; }
-    .sidebar .user-section .logout-btn:not(#navPatchNotes) { display:none; }
+    .sidebar .user-section .logout-btn:not(#navPatchNotes) { display:none !important; }
     .dash-grid { grid-template-columns:1fr; }
     .client-grid { grid-template-columns:1fr 1fr; }
   }
@@ -1181,7 +1192,14 @@ MAIN APP
 <button class="side-tab" id="ticketArchiveTab" onclick="toggleTicketArchive()">&#128451;&#65039; Archive<span class="side-badge" id="ticketArchiveBadge"></span></button>
 <div class="side-drawer" id="ticketArchiveDrawer">
   <div class="side-drawer-header"><strong>&#128451;&#65039; Archived Tickets</strong><button class="side-drawer-close" onclick="toggleTicketArchive(false)">&#10005;</button></div>
-  <div class="side-drawer-list" id="ticketArchiveList"></div>
+  <div class="side-drawer-datebar">
+    <button type="button" onclick="shiftArchiveDate(-1)">&lsaquo;</button>
+    <input type="date" id="ticketArchiveDate" onchange="onArchiveDateChange()" />
+    <button type="button" onclick="shiftArchiveDate(1)">&rsaquo;</button>
+    <button type="button" class="side-drawer-clear-date" onclick="clearArchiveDateFilter()">All</button>
+  </div>
+  <div class="side-drawer-hint">Drag a ticket card here to archive it. Drag an entry back onto the grid to restore it.</div>
+  <div class="side-drawer-list" id="ticketArchiveList" ondragover="handleArchiveDragOver(event)" ondragleave="handleArchiveDragLeave(event)" ondrop="handleArchiveDrop(event)"></div>
 </div>
 
 <!-- INACTIVITY WARNING -->
@@ -2125,7 +2143,7 @@ function renderAdmins() {
   admins.forEach(function(a){
     var tr = document.createElement('tr');
     var roleLabel = a.role === 'it_support' ? 'IT Support' : 'Admin';
-    var setupLabel = a.setup === 'complete' ? '<span class="status-active">✅ Complete</span>' : '<span class="status-expiring">⏳ Pending first login</span>';
+    var setupLabel = a.setup === 'complete' ? '<span class="status-active">✅ Active</span>' : '<span class="status-expiring">⏳ Awaiting first login</span>';
     tr.innerHTML = '<td>' + a.name + '</td><td>' + a.email + '</td><td>' + roleLabel + '</td><td>' + a.added + '</td><td>' + setupLabel + '</td><td>—</td>';
     tbody.appendChild(tr);
   });
@@ -2481,23 +2499,74 @@ function updateHelpTicketsNavBadge() {
   if (openCount > 0) { badge.textContent = openCount; badge.style.display = 'flex'; } else { badge.style.display = 'none'; }
 }
 
+var customTicketOrder = null; // array of ticket ids, in-memory only (demo has no backend to persist this to)
+
 function renderHelpTickets() {
   var grid = document.getElementById('helpTicketsGrid');
   var visible = tickets.filter(function(t){ return !t.archived; });
+  visible.sort(function(a,b){ return b.createdAt - a.createdAt; });
+  if (customTicketOrder) {
+    var byId = {};
+    visible.forEach(function(t){ byId[t.id] = t; });
+    var ordered = [];
+    customTicketOrder.forEach(function(id){ if (byId[id]) { ordered.push(byId[id]); delete byId[id]; } });
+    Object.keys(byId).forEach(function(id){ ordered.push(byId[id]); }); // anything new goes to the end
+    visible = ordered;
+  }
   grid.innerHTML = '';
   if (!visible.length) { grid.innerHTML = '<div class="empty-note">No tickets right now.</div>'; }
-  visible.sort(function(a,b){ return b.createdAt - a.createdAt; });
   visible.forEach(function(t){ grid.appendChild(buildHelpTicketCard(t)); });
   renderTicketArchiveList();
   updateTicketArchiveBadge();
   updateHelpTicketsNavBadge();
 }
 
+// Dropping one ticket card directly onto another: if it came from the
+// Archive drawer, restore it; otherwise it's a same-grid reorder — splice
+// the dragged id into the current order, immediately before whatever it
+// was dropped on.
+function handleGridCardDrop(e, targetTicketId) {
+  var draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+  var source = e.dataTransfer.getData('text/x-pq-source');
+  if (!draggedId || draggedId === targetTicketId) return;
+  if (source === 'archive') { setTicketArchived(draggedId, false); return; }
+  reorderTicketBefore(draggedId, targetTicketId);
+}
+
+function reorderTicketBefore(draggedId, beforeId) {
+  var ids = Array.prototype.map.call(
+    document.querySelectorAll('#helpTicketsGrid .ticket-card'),
+    function(el){ return parseInt(el.dataset.ticketId, 10); }
+  );
+  ids = ids.filter(function(id){ return id !== draggedId; });
+  var idx = beforeId == null ? ids.length : ids.indexOf(beforeId);
+  if (idx === -1) idx = ids.length;
+  ids.splice(idx, 0, draggedId);
+  customTicketOrder = ids;
+  renderHelpTickets();
+}
+
+(function() {
+  var grid = document.getElementById('helpTicketsGrid');
+  if (!grid) return;
+  grid.addEventListener('dragover', function(e){ e.preventDefault(); });
+  grid.addEventListener('drop', function(e){
+    e.preventDefault();
+    var draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+    var source = e.dataTransfer.getData('text/x-pq-source');
+    if (!draggedId) return;
+    if (source === 'archive') { setTicketArchived(draggedId, false); }
+    else { reorderTicketBefore(draggedId, null); }
+  });
+})();
+
 function buildHelpTicketCard(t) {
   var priority = t.priority || 'normal';
   var priorityLabel = priority.charAt(0).toUpperCase() + priority.slice(1);
   var card = document.createElement('div');
   card.className = 'ticket-card ticket-card--' + priority + (t.status === 'resolved' ? ' ticket-card--resolved' : '');
+  card.dataset.ticketId = t.id;
+  card.draggable = true;
 
   var top = document.createElement('div'); top.className = 'ticket-card-top';
   var priorityPill = document.createElement('span'); priorityPill.className = 'ticket-priority-pill ticket-priority-pill--' + priority; priorityPill.textContent = priorityLabel;
@@ -2553,6 +2622,17 @@ function buildHelpTicketCard(t) {
   }
 
   card.appendChild(top); card.appendChild(person); card.appendChild(issueBox); card.appendChild(footer);
+
+  card.addEventListener('dragstart', function(e){
+    e.dataTransfer.setData('text/plain', String(t.id));
+    e.dataTransfer.setData('text/x-pq-source', 'grid');
+    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add('ticket-card--dragging');
+  });
+  card.addEventListener('dragend', function(){ card.classList.remove('ticket-card--dragging'); });
+  card.addEventListener('dragover', function(e){ e.preventDefault(); });
+  card.addEventListener('drop', function(e){ e.preventDefault(); e.stopPropagation(); handleGridCardDrop(e, t.id); });
+
   card.addEventListener('click', function(){ openTicketDetailModal(t.id); });
   return card;
 }
@@ -2573,21 +2653,83 @@ function setTicketArchived(ticketId, archived) {
   }).then(function(){ renderHelpTickets(); showToast(archived ? 'Ticket archived.' : 'Ticket restored to the board.', 'success', 3000); });
 }
 
+var ticketArchiveDateFilter = null; // 'YYYY-MM-DD' or null for "All"
+
+function ticketArchiveDateOf(t) {
+  // Group by resolved date when resolved (that's almost always when
+  // something gets archived), falling back to submitted date for the
+  // rare archived-but-still-open case.
+  var d = new Date(t.resolvedAt || t.createdAt);
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return d.getFullYear() + '-' + mm + '-' + dd;
+}
+
+function shiftArchiveDate(deltaDays) {
+  var dateInput = document.getElementById('ticketArchiveDate');
+  var base = dateInput.value ? new Date(dateInput.value + 'T00:00:00') : new Date();
+  base.setDate(base.getDate() + deltaDays);
+  var mm = String(base.getMonth() + 1).padStart(2, '0');
+  var dd = String(base.getDate()).padStart(2, '0');
+  dateInput.value = base.getFullYear() + '-' + mm + '-' + dd;
+  ticketArchiveDateFilter = dateInput.value;
+  renderTicketArchiveList();
+}
+
+function onArchiveDateChange() {
+  var dateInput = document.getElementById('ticketArchiveDate');
+  ticketArchiveDateFilter = dateInput.value || null;
+  renderTicketArchiveList();
+}
+
+function clearArchiveDateFilter() {
+  ticketArchiveDateFilter = null;
+  document.getElementById('ticketArchiveDate').value = '';
+  renderTicketArchiveList();
+}
+
 function renderTicketArchiveList() {
   var list = document.getElementById('ticketArchiveList');
-  var archived = tickets.filter(function(t){ return t.archived; });
-  if (!archived.length) { list.innerHTML = '<div class="empty-note">No archived tickets.</div>'; return; }
+  var archived = tickets
+    .filter(function(t){ return t.archived; })
+    .filter(function(t){ return !ticketArchiveDateFilter || ticketArchiveDateOf(t) === ticketArchiveDateFilter; })
+    .sort(function(a,b){ return new Date(b.resolvedAt || b.createdAt) - new Date(a.resolvedAt || a.createdAt); });
+  if (!archived.length) {
+    list.innerHTML = '<div class="empty-note">' + (ticketArchiveDateFilter ? 'No archived tickets on that date.' : 'No archived tickets yet.') + '</div>';
+    return;
+  }
   list.innerHTML = '';
   archived.forEach(function(t){
     var entry = document.createElement('div');
     entry.className = 'ticket-archive-entry ticket-archive-entry--' + (t.priority||'normal');
+    entry.draggable = true;
+    entry.dataset.ticketId = t.id;
     entry.innerHTML = '<div style="flex:1; min-width:0;"><div class="ticket-archive-entry-name">#' + t.id + ' — ' + t.submitterName + '</div>' +
-      '<div class="ticket-archive-entry-snippet">' + escLog(t.message) + '</div></div>' +
+      '<div class="ticket-archive-entry-snippet">' + escLog(t.message) + '</div>' +
+      '<div class="ticket-archive-entry-date">' + (t.resolvedAt ? 'Resolved ' + new Date(t.resolvedAt).toLocaleString() : 'Submitted ' + new Date(t.createdAt).toLocaleString()) + '</div></div>' +
       '<button type="button" class="ticket-archive-restore-btn">Restore</button>';
     entry.querySelector('.ticket-archive-restore-btn').addEventListener('click', function(e){ e.stopPropagation(); setTicketArchived(t.id, false); });
+    entry.addEventListener('dragstart', function(e){
+      e.dataTransfer.setData('text/plain', String(t.id));
+      e.dataTransfer.setData('text/x-pq-source', 'archive');
+      e.dataTransfer.effectAllowed = 'move';
+    });
     entry.addEventListener('click', function(){ openTicketDetailModal(t.id); });
     list.appendChild(entry);
   });
+}
+
+function handleArchiveDragOver(e) { e.preventDefault(); document.getElementById('ticketArchiveList').classList.add('ticket-drop-target'); }
+function handleArchiveDragLeave(e) { document.getElementById('ticketArchiveList').classList.remove('ticket-drop-target'); }
+function handleArchiveDrop(e) {
+  e.preventDefault();
+  document.getElementById('ticketArchiveList').classList.remove('ticket-drop-target');
+  var draggedId = parseInt(e.dataTransfer.getData('text/plain'), 10);
+  var source = e.dataTransfer.getData('text/x-pq-source');
+  if (!draggedId || source === 'archive') return; // already archived - dropping on itself is a no-op
+  var ticket = tickets.find(function(t){ return t.id === draggedId; });
+  if (!ticket || ticket.status !== 'resolved') { showToast('Only resolved tickets can be archived.', 'warning'); return; }
+  setTicketArchived(draggedId, true);
 }
 
 function toggleTicketArchive(force) {

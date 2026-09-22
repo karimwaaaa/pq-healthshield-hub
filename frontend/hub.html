@@ -438,8 +438,13 @@
        Out, IT Support needs to be ABLE to post patch notes even with the
        sidebar collapsed, not have their only entry point vanish. It gets
        its own compact icon-only treatment below instead of disappearing. */
+    /* !important is required here: #navHelp gets an inline display:flex/none
+       set by role-based JS (see the isItSupport check that toggles it), and
+       an inline style otherwise beats this class selector outright, which
+       silently kept Help visible (and overflowing the rail) whenever the
+       sidebar was collapsed for any non-IT-Support role. */
     .sidebar.collapsed .user-section .logout-btn:not(#navPatchNotes) {
-      display: none;
+      display: none !important;
     }
     .sidebar.collapsed .user-section #navPatchNotes {
       width: 40px;
@@ -2275,7 +2280,7 @@
          excluded because IT Support needs to be able to post it even at
          narrow widths - it gets its own icon-only treatment instead. */
       .sidebar .user-section .logout-btn:not(#navPatchNotes) {
-        display: none;
+        display: none !important;
       }
       /* "Post Patch Notes" is the longest label in this button group -
          shrinking the font alone still wraps/overflows in a 64px-wide
