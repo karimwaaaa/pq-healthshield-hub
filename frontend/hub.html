@@ -2826,7 +2826,7 @@
             <div class="patch-notes-view-link" id="patchNotesViewLink" onclick="openPatchNotesViewer()">📣 What's New</div>
           </div>
         </div>
-        <button class="logout-btn" onclick="openChangePasswordModal(false)" style="margin-bottom:2px;">
+        <button class="logout-btn" onclick="openChangePasswordModal(false)" id="navChangePassword" style="margin-bottom:2px;">
           <span>🔑</span> Change Password
         </button>
         <button class="logout-btn" onclick="openPostPatchNotesModal()" id="navPatchNotes" style="margin-bottom:2px; display:none;" title="Post Patch Notes">
@@ -5556,6 +5556,14 @@
       // gets it.
       var navHelp = document.getElementById('navHelp');
       if (navHelp) navHelp.style.display = isItSupport ? 'none' : 'flex';
+
+      // Encoders only ever get temporary, admin-issued passwords (see
+      // Password Management) - there's no self-service password for them
+      // to change, so the button is hidden entirely. (The backend's
+      // changePassword handler also rejects this server-side now - this
+      // is belt-and-suspenders, not the actual enforcement.)
+      var navChangePassword = document.getElementById('navChangePassword');
+      if (navChangePassword) navChangePassword.style.display = role === 'encoder' ? 'none' : 'flex';
     }
 
     // ============================================================

@@ -578,7 +578,7 @@ MAIN APP
           <div class="patch-notes-view-link" id="patchNotesViewLink" onclick="openPatchNotesViewer()">&#128227; What's New</div>
         </div>
       </div>
-      <button class="logout-btn" onclick="openChangePasswordModal(false)" style="margin-bottom:2px;">
+      <button class="logout-btn" onclick="openChangePasswordModal(false)" id="navChangePassword" style="margin-bottom:2px;">
         <span>&#128273;</span> Change Password
       </button>
       <button class="logout-btn" onclick="openPostPatchNotesModal()" id="navPatchNotes" style="margin-bottom:2px; display:none;" title="Post Patch Notes">
@@ -1517,6 +1517,11 @@ function applyRoleBasedUI(role) {
   document.getElementById('navPatchNotes').style.display = isItSupport ? 'flex' : 'none';
   document.getElementById('patchNotesViewLink').style.display = isItSupport ? 'none' : '';
   document.getElementById('navHelp').style.display = isItSupport ? 'none' : 'flex';
+  // Encoders only ever get temporary, admin-issued passwords (see Password
+  // Management) - there's no self-service password to change, so the
+  // button is hidden entirely rather than opening a modal that would just
+  // fail or confuse them.
+  document.getElementById('navChangePassword').style.display = role === 'encoder' ? 'none' : 'flex';
   document.getElementById('actionLogTab').classList.toggle('visible', isAdmin);
   document.getElementById('ticketArchiveTab').classList.toggle('visible', false); // only visible on Help Tickets view (see setTicketArchiveContext)
 }
@@ -2142,9 +2147,24 @@ function renderAdmins() {
   tbody.innerHTML = '';
   admins.forEach(function(a){
     var tr = document.createElement('tr');
+    var isSelf = currentUser && currentUser.email && a.email && a.email.toLowerCase() === currentUser.email.toLowerCase();
     var roleLabel = a.role === 'it_support' ? 'IT Support' : 'Admin';
     var setupLabel = a.setup === 'complete' ? '<span class="status-active">✅ Active</span>' : '<span class="status-expiring">⏳ Awaiting first login</span>';
-    tr.innerHTML = '<td>' + a.name + '</td><td>' + a.email + '</td><td>' + roleLabel + '</td><td>' + a.added + '</td><td>' + setupLabel + '</td><td>—</td>';
+    tr.innerHTML = '<td>' + a.name + '</td><td>' + a.email + '</td><td>' + roleLabel + '</td><td>' + a.added + '</td><td>' + setupLabel + '</td>';
+    var actionsTd = document.createElement('td');
+    if (isSelf) {
+      // Can't remove the account you're currently logged in as - hiding the
+      // button avoids a confusing round-trip just to see that error.
+      actionsTd.innerHTML = '<span style="font-size:0.78em; color:var(--grey-600);">(you)</span>';
+    } else {
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'btn-sm revoke';
+      removeBtn.textContent = '🗑️ Remove';
+      removeBtn.onclick = function(){ removeAdminAction(a, roleLabel); };
+      actionsTd.appendChild(removeBtn);
+    }
+    tr.appendChild(actionsTd);
     tbody.appendChild(tr);
   });
   var alertBox = document.getElementById('lockedAccountsAlert');
@@ -2170,6 +2190,21 @@ function unlockAccount(email) {
       return { success:true };
     }).then(function(){ renderAdmins(); showToast('Account unlocked.', 'success'); });
   });
+}
+function removeAdminAction(admin, roleLabel) {
+  openConfirmModal(
+    'Remove the ' + roleLabel + ' account for ' + admin.name + ' (' + admin.email + ')? This cannot be undone — they will be signed out immediately and will need a brand new account created for them to get back in.',
+    function(){
+      fakeBackend(function(){
+        admins = admins.filter(function(a){ return a.email !== admin.email; });
+        logActivity('password', roleLabel + ' account removed for ' + admin.email);
+        return { success:true };
+      }).then(function(){
+        renderAdmins();
+        showToast(roleLabel + ' account removed for ' + admin.name + '.', 'success');
+      });
+    }
+  );
 }
 
 function openAddAdminModal() {
@@ -2265,14 +2300,14 @@ function renderEncoderTable() {
         var c = clients.find(function(cc){ return cc.id === cid; });
         if (!c) return '';
         return '<span class="client-badge">' + c.name + ' <span class="x" data-unassign-encoder="' + en.id + '" data-unassign-client="' + cid + '">✕</span></span>';
-      }).join('') || '<span style="color:var(--grey-600); font-size:0.85em;">None</span>';
+      }).join('') || '<span style="color:var(--grey-600);">(None)</span>';
       tr.innerHTML =
         '<td class="encoder-check-col' + (bulkOpen ? '' : ' hidden-col') + '"><input type="checkbox" data-enc-id="' + en.id + '" ' + (encoderSelectedIds.has(en.id) ? 'checked' : '') + ' /></td>' +
-        '<td>' + en.displayName + '</td>' +
+        '<td>' + en.displayName + ' <span class="edit-icon" data-edit-encoder="' + en.id + '" title="Edit">✎</span></td>' +
         '<td>' + en.email + '</td>' +
         '<td>' + encoderStatusBadge(en.status) + '</td>' +
         '<td>' + clientBadges + '</td>' +
-        '<td><span class="edit-icon" data-edit-encoder="' + en.id + '">✎ Edit</span></td>';
+        '<td><button type="button" class="btn-sm generate" data-assign-encoder="' + en.id + '">Assign…</button></td>';
       tbody.appendChild(tr);
     });
     tbody.querySelectorAll('[data-unassign-encoder]').forEach(function(el){
@@ -2284,6 +2319,9 @@ function renderEncoderTable() {
     tbody.querySelectorAll('[data-edit-encoder]').forEach(function(el){
       el.addEventListener('click', function(){ openEditEncoderModal(parseInt(el.dataset.editEncoder, 10)); });
     });
+    tbody.querySelectorAll('[data-assign-encoder]').forEach(function(el){
+      el.addEventListener('click', function(){ openBulkAssignModal([parseInt(el.dataset.assignEncoder, 10)]); });
+    });
     tbody.querySelectorAll('input[type=checkbox][data-enc-id]').forEach(function(cb){
       cb.addEventListener('change', function(){
         var id = parseInt(cb.dataset.encId, 10);
@@ -2292,12 +2330,15 @@ function renderEncoderTable() {
       });
     });
   }
-  renderEncoderPagination(totalPages);
+  renderEncoderPagination(totalPages, filtered.length);
   updateBulkButtonsState();
 }
-function renderEncoderPagination(totalPages) {
+function renderEncoderPagination(totalPages, total) {
   var el = document.getElementById('encoderPagination');
-  el.innerHTML = '<span>Page ' + encoderCurrentPage + ' of ' + totalPages + '</span>' +
+  var start = (encoderCurrentPage - 1) * ENCODER_PAGE_SIZE;
+  var rangeStart = total === 0 ? 0 : start + 1;
+  var rangeEnd = Math.min(start + ENCODER_PAGE_SIZE, total);
+  el.innerHTML = '<span>' + rangeStart + '–' + rangeEnd + ' of ' + total + ' encoders</span>' +
     '<span><button ' + (encoderCurrentPage<=1?'disabled':'') + ' id="encPrevBtn">‹ Prev</button> <button ' + (encoderCurrentPage>=totalPages?'disabled':'') + ' id="encNextBtn">Next ›</button></span>';
   var prev = document.getElementById('encPrevBtn'), next = document.getElementById('encNextBtn');
   if (prev) prev.addEventListener('click', function(){ encoderCurrentPage--; renderEncoderTable(); });
@@ -2395,12 +2436,16 @@ function confirmDeleteEncoder() {
 }
 
 // ---- Bulk Assign ----
-function openBulkAssignModal() {
+var bulkAssignPendingIds = [];
+function openBulkAssignModal(presetIds) {
+  var ids = presetIds || Array.from(encoderSelectedIds);
+  if (!ids.length) { showToast('Select at least one encoder first.', 'warning'); return; }
+  bulkAssignPendingIds = ids;
   var sel = document.getElementById('bulkAssignClientSelect');
   sel.innerHTML = '';
   clients.forEach(function(c){ var opt = document.createElement('option'); opt.value=c.id; opt.textContent=c.name; sel.appendChild(opt); });
-  document.getElementById('bulkAssignTitle').textContent = 'Assign Encoders to Client';
-  document.getElementById('bulkAssignSub').textContent = 'Assigning ' + encoderSelectedIds.size + ' selected encoder(s).';
+  document.getElementById('bulkAssignTitle').textContent = 'Assign ' + ids.length + ' Encoder' + (ids.length === 1 ? '' : 's') + ' to Client';
+  document.getElementById('bulkAssignSub').textContent = "You're assigning " + ids.length + ' encoder' + (ids.length === 1 ? '' : 's') + '.';
   document.getElementById('bulkAssignModal').classList.add('open');
 }
 function closeBulkAssignModal() { document.getElementById('bulkAssignModal').classList.remove('open'); }
@@ -2409,7 +2454,7 @@ function submitBulkAssign() {
   var clientId = parseInt(document.getElementById('bulkAssignClientSelect').value, 10);
   var client = clients.find(function(c){ return c.id === clientId; });
   if (!client) return;
-  var ids = Array.from(encoderSelectedIds);
+  var ids = bulkAssignPendingIds;
   var restore = setButtonBusy(document.getElementById('bulkAssignSaveBtn'), 'Assigning...');
   fakeBackend(function(){
     ids.forEach(function(id){
@@ -2423,6 +2468,7 @@ function submitBulkAssign() {
   }).then(function(){
     restore(); closeBulkAssignModal();
     encoderSelectedIds.clear();
+    bulkAssignPendingIds = [];
     renderEncoderTable();
     showToast(ids.length + ' encoder(s) assigned to ' + client.name + '.', 'success');
   });

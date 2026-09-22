@@ -808,6 +808,16 @@ serve(async (req) => {
         const { data: user } = await sb.from("users").select("*").eq("id", session.user_id).maybeSingle();
         if (!user) return json({ success: false, error: "User not found" });
 
+        // Encoders only ever get temporary, admin-issued passwords (see
+        // generateTempPassword) - self-service password changes are an
+        // admin/IT Support thing only. The frontend already hides the
+        // "Change Password" button for encoders, but that's just UI - this
+        // is the actual enforcement, since the endpoint would otherwise
+        // happily honor a hand-crafted request from an encoder session.
+        if (user.role === "encoder") {
+          return json({ success: false, error: "Encoders can't change their own password. Ask your administrator to generate a new temporary password instead." });
+        }
+
         const ok = await bcrypt.compare(currentPassword, user.password_hash);
         if (!ok) return json({ success: false, error: "Current password is incorrect." });
 
